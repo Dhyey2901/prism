@@ -1,68 +1,134 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { useCallback, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowRight, RotateCcw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DropZone } from "@/components/upload/drop-zone";
+import { DataTable } from "@/components/preview/data-table";
+import { StatsBar } from "@/components/preview/stats-bar";
+import { parseFile } from "@/lib/parser";
+import type { DatasetSummary } from "@/types";
+
+type PageState =
+  | { status: "idle" }
+  | { status: "parsing" }
+  | { status: "ready"; dataset: DatasetSummary }
+  | { status: "error"; message: string };
 
 export default function Home() {
+  const [state, setState] = useState<PageState>({ status: "idle" });
+
+  const handleFile = useCallback(async (file: File) => {
+    setState({ status: "parsing" });
+    try {
+      const dataset = await parseFile(file);
+      setState({ status: "ready", dataset });
+    } catch (e) {
+      setState({
+        status: "error",
+        message: e instanceof Error ? e.message : "Failed to parse file.",
+      });
+    }
+  }, []);
+
+  const reset = useCallback(() => setState({ status: "idle" }), []);
+
+  const isUploadView = state.status !== "ready";
+
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-6">
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-        className="max-w-lg w-full flex flex-col items-center text-center gap-10"
-      >
-        {/* Status badge */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.1, duration: 0.3, ease: "easeOut" }}
-          className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5"
+    <main className="min-h-screen flex flex-col">
+      {/* Header */}
+      <header className="flex items-center justify-between px-6 h-14 border-b border-border/50 shrink-0">
+        <button
+          onClick={reset}
+          className="text-sm font-semibold tracking-tight text-foreground hover:text-primary transition-colors"
         >
-          <span className="size-1.5 rounded-full bg-primary" />
-          <span className="text-xs font-mono text-muted-foreground tracking-widest uppercase">
-            Early Access
-          </span>
-        </motion.div>
+          Prism
+        </button>
 
-        {/* Wordmark + tagline */}
-        <div className="flex flex-col gap-4">
-          <h1 className="text-6xl font-semibold tracking-tight text-foreground leading-none">
-            Prism
-          </h1>
-          <p className="text-[15px] text-muted-foreground leading-relaxed max-w-xs mx-auto">
-            Turn raw spreadsheets into insights, visualizations, and exportable
-            reports — in seconds.
-          </p>
-        </div>
+        <AnimatePresence>
+          {!isUploadView && (
+            <motion.div
+              initial={{ opacity: 0, x: 8 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 8 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+            >
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={reset}
+                className="gap-1.5 h-8 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <RotateCcw className="size-3" />
+                Upload different file
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </header>
 
-        {/* CTAs */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.25, duration: 0.4, ease: "easeOut" }}
-          className="flex items-center gap-3"
-        >
-          <Button size="lg" className="gap-2 h-10 px-5 text-sm font-medium">
-            <Sparkles className="size-3.5" />
-            Analyze a file
-            <ArrowRight className="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="lg"
-            className="h-10 px-5 text-sm font-medium text-muted-foreground hover:text-foreground"
+      {/* Body */}
+      <AnimatePresence mode="wait">
+        {isUploadView ? (
+          <motion.div
+            key="upload"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className="flex-1 flex flex-col items-center justify-center px-6 py-16"
           >
-            View demo
-          </Button>
-        </motion.div>
+            <div className="w-full max-w-md flex flex-col gap-6">
+              <div className="text-center space-y-2">
+                <h1 className="text-4xl font-semibold tracking-tight">Prism</h1>
+                <p className="text-sm text-muted-foreground">
+                  Upload a spreadsheet to get started
+                </p>
+              </div>
 
-        {/* Trust line */}
-        <p className="text-[11px] font-mono text-muted-foreground/40 tracking-wider">
-          No data stored&nbsp;&nbsp;·&nbsp;&nbsp;Processed in your browser
-        </p>
-      </motion.div>
+              <DropZone
+                onFile={handleFile}
+                isLoading={state.status === "parsing"}
+                error={state.status === "error" ? state.message : null}
+              />
+
+              <p className="text-center text-[11px] font-mono text-muted-foreground/40 tracking-wider">
+                No data stored&nbsp;&nbsp;·&nbsp;&nbsp;Processed in your browser
+              </p>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="preview"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.35, ease: "easeOut" }}
+            className="flex-1 flex flex-col px-6 py-8 w-full max-w-6xl mx-auto gap-6"
+          >
+            <StatsBar dataset={state.dataset} />
+            <DataTable dataset={state.dataset} />
+
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-mono text-muted-foreground/40">
+                {state.dataset.columnCount} columns ·{" "}
+                {state.dataset.rowCount.toLocaleString()} rows parsed
+              </p>
+              <Button
+                disabled
+                size="sm"
+                className="gap-2 h-9 px-4 text-sm font-medium"
+              >
+                <Sparkles className="size-3.5" />
+                Analyze with AI
+                <ArrowRight className="size-3.5" />
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }
