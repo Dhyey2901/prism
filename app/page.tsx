@@ -2,18 +2,21 @@
 
 import { useCallback, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowRight, ArrowLeft, Loader2, RotateCcw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropZone } from "@/components/upload/drop-zone";
 import { DataTable } from "@/components/preview/data-table";
 import { StatsBar } from "@/components/preview/stats-bar";
+import { AnalysisView } from "@/components/insights/analysis-view";
 import { parseFile } from "@/lib/parser";
-import type { DatasetSummary } from "@/types";
+import type { AnalysisResult, DatasetSummary } from "@/types";
 
 type PageState =
   | { status: "idle" }
   | { status: "parsing" }
   | { status: "ready"; dataset: DatasetSummary }
+  | { status: "analyzing"; dataset: DatasetSummary }
+  | { status: "done"; dataset: DatasetSummary; result: AnalysisResult }
   | { status: "error"; message: string };
 
 export default function Home() {
@@ -32,9 +35,47 @@ export default function Home() {
     }
   }, []);
 
+  const handleAnalyze = useCallback(async () => {
+    if (state.status !== "ready") return;
+    const { dataset } = state;
+    setState({ status: "analyzing", dataset });
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dataset),
+      });
+      if (!res.ok) {
+        const body = (await res.json()) as { error?: string };
+        throw new Error(body.error ?? `Server error ${res.status}`);
+      }
+      const result = (await res.json()) as AnalysisResult;
+      setState({ status: "done", dataset, result });
+    } catch (e) {
+      setState({
+        status: "error",
+        message: e instanceof Error ? e.message : "Analysis failed.",
+      });
+    }
+  }, [state]);
+
+  const backToPreview = useCallback(() => {
+    if (state.status === "done") {
+      setState({ status: "ready", dataset: state.dataset });
+    }
+  }, [state]);
+
   const reset = useCallback(() => setState({ status: "idle" }), []);
 
-  const isUploadView = state.status !== "ready";
+  const isUploadView =
+    state.status === "idle" ||
+    state.status === "parsing" ||
+    state.status === "error";
+
+  const isPreviewView =
+    state.status === "ready" || state.status === "analyzing";
+
+  const isDoneView = state.status === "done";
 
   return (
     <main className="min-h-screen flex flex-col">
@@ -54,7 +95,19 @@ export default function Home() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 8 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
+              className="flex items-center gap-2"
             >
+              {isDoneView && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={backToPreview}
+                  className="gap-1.5 h-8 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <ArrowLeft className="size-3" />
+                  Back to data
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -71,7 +124,7 @@ export default function Home() {
 
       {/* Body */}
       <AnimatePresence mode="wait">
-        {isUploadView ? (
+        {isUploadView && (
           <motion.div
             key="upload"
             initial={{ opacity: 0, y: 10 }}
@@ -99,7 +152,9 @@ export default function Home() {
               </p>
             </div>
           </motion.div>
-        ) : (
+        )}
+
+        {isPreviewView && (
           <motion.div
             key="preview"
             initial={{ opacity: 0, y: 10 }}
@@ -117,15 +172,38 @@ export default function Home() {
                 {state.dataset.rowCount.toLocaleString()} rows parsed
               </p>
               <Button
-                disabled
                 size="sm"
+                onClick={handleAnalyze}
+                disabled={state.status === "analyzing"}
                 className="gap-2 h-9 px-4 text-sm font-medium"
               >
-                <Sparkles className="size-3.5" />
-                Analyze with AI
-                <ArrowRight className="size-3.5" />
+                {state.status === "analyzing" ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" />
+                    Analyzing…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="size-3.5" />
+                    Analyze with AI
+                    <ArrowRight className="size-3.5" />
+                  </>
+                )}
               </Button>
             </div>
+          </motion.div>
+        )}
+
+        {isDoneView && (
+          <motion.div
+            key="done"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.35, ease: "easeOut" }}
+            className="flex-1 flex flex-col px-6 py-8 w-full max-w-4xl mx-auto"
+          >
+            <AnalysisView result={state.result} dataset={state.dataset} />
           </motion.div>
         )}
       </AnimatePresence>
