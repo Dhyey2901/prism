@@ -8,6 +8,7 @@ import { DropZone } from "@/components/upload/drop-zone";
 import { DataTable } from "@/components/preview/data-table";
 import { StatsBar } from "@/components/preview/stats-bar";
 import { AnalysisView } from "@/components/insights/analysis-view";
+import { ExportButton } from "@/components/export/export-button";
 import { parseFile } from "@/lib/parser";
 import type { AnalysisResult, DatasetSummary } from "@/types";
 
@@ -201,9 +202,12 @@ export default function Home() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.35, ease: "easeOut" }}
-            className="flex-1 flex flex-col px-6 py-8 w-full max-w-4xl mx-auto"
+            className="flex-1 flex flex-col px-6 py-8 w-full max-w-4xl mx-auto gap-6"
           >
             <AnalysisView result={state.result} dataset={state.dataset} />
+            <div className="flex justify-end pb-4">
+              <ExportButton result={state.result} dataset={state.dataset} />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
