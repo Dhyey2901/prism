@@ -1,5 +1,6 @@
 import { BarChart2, Lightbulb, TrendingUp } from "lucide-react";
 import type { AnalysisResult, DatasetSummary } from "@/types";
+import { ChartRenderer } from "@/components/charts/chart-renderer";
 
 interface AnalysisViewProps {
   result: AnalysisResult;
@@ -69,21 +70,18 @@ export function AnalysisView({ result, dataset }: AnalysisViewProps) {
         </div>
       </div>
 
-      {/* Charts — placeholder for Stage 4 */}
+      {/* Charts */}
       <div className="rounded-lg border border-border bg-card">
         <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
           <BarChart2 className="size-4 text-muted-foreground" />
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Charts
           </p>
-          <span className="ml-auto text-[10px] font-mono text-muted-foreground/50">
-            Stage 4
-          </span>
         </div>
 
         <div className="flex flex-col divide-y divide-border">
           {result.charts.map((chart, i) => (
-            <div key={i} className="px-5 py-4 flex flex-col gap-1.5">
+            <div key={i} className="px-5 py-5 flex flex-col gap-3">
               <div className="flex items-center gap-2">
                 <TrendingUp className="size-3.5 text-primary shrink-0" />
                 <p className="text-sm font-medium text-foreground">{chart.title}</p>
@@ -91,11 +89,9 @@ export function AnalysisView({ result, dataset }: AnalysisViewProps) {
                   {CHART_TYPE_LABEL[chart.type] ?? chart.type}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground pl-5 leading-snug">
+              <ChartRenderer chart={chart} />
+              <p className="text-xs text-muted-foreground leading-snug">
                 {chart.insight}
-              </p>
-              <p className="text-[11px] font-mono text-muted-foreground/40 pl-5">
-                x: {chart.x_key} · y: {chart.y_key} · {chart.data.length} data points
               </p>
             </div>
           ))}
