@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { generateText } from "ai";
+import { google } from "@ai-sdk/google";
 import { buildAnalysisPrompt } from "@/lib/prompt";
 import { validateAnalysisResult } from "@/lib/validate";
 import type { DatasetSummary } from "@/types";
-
-const client = new Anthropic();
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,23 +18,12 @@ export async function POST(req: NextRequest) {
 
     const prompt = buildAnalysisPrompt(dataset);
 
-    const message = await client.messages.create({
-      model: "claude-opus-4-8",
-      max_tokens: 2048,
-      thinking: { type: "adaptive" },
-      messages: [{ role: "user", content: prompt }],
+    const { text } = await generateText({
+      model: google("gemini-2.0-flash"),
+      prompt,
     });
 
-    // Extract text blocks only — ignore thinking blocks
-    const text = message.content
-      .map((block) => {
-        if (block.type === "text") return block.text;
-        return "";
-      })
-      .join("")
-      .trim();
-
-    // Strip markdown code fences if Claude adds them despite the instruction
+    // Strip markdown code fences if Gemini wraps the JSON
     const json = text
       .replace(/^```(?:json)?\s*/m, "")
       .replace(/\s*```\s*$/m, "")
