@@ -18,6 +18,12 @@ async function parseCSV(file: File): Promise<DatasetSummary> {
       header: true,
       skipEmptyLines: true,
       dynamicTyping: false,
+      // Blank headers would collide as duplicate "" object keys and lose
+      // whole columns — name them positionally before that can happen
+      transformHeader: (header: string, index: number) => {
+        const trimmed = header.trim();
+        return trimmed !== "" ? trimmed : `column_${index + 1}`;
+      },
       complete: (results) => {
         const fatal = results.errors.find(
           (e) => e.type === "Delimiter" || e.type === "FieldMismatch"
@@ -53,8 +59,11 @@ async function parseXLSX(file: File): Promise<DatasetSummary> {
 
   worksheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) {
-      row.eachCell({ includeEmpty: false }, (cell) => {
-        headers.push(String(cell.value ?? `Column ${headers.length + 1}`));
+      // includeEmpty — skipping a blank header cell would shift every
+      // header after it onto the wrong column
+      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        const raw = cell.value == null ? "" : String(cell.value).trim();
+        headers[colNumber - 1] = raw !== "" ? raw : `column_${colNumber}`;
       });
     } else {
       const rowData: Record<string, unknown> = {};

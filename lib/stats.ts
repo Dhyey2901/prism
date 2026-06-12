@@ -48,10 +48,19 @@ export function buildSummary(
     throw new Error("File is empty — no data rows found.");
   }
 
-  const columnNames = Object.keys(rows[0]);
+  // Real-world exports often have blank or whitespace-padded headers
+  // (e.g. an unnamed index column) — normalise them so every column has
+  // a usable, unique name. Values are still read via the original key.
+  const usedNames = new Set<string>();
+  const keyedColumns = Object.keys(rows[0]).map((key, i) => {
+    let name = key.trim() !== "" ? key.trim() : `column_${i + 1}`;
+    while (usedNames.has(name)) name = `${name}_${i + 1}`;
+    usedNames.add(name);
+    return { key, name };
+  });
 
-  const columns: ColumnMeta[] = columnNames.map((name) => {
-    const values = rows.map((r) => r[name] ?? null);
+  const columns: ColumnMeta[] = keyedColumns.map(({ key, name }) => {
+    const values = rows.map((r) => r[key] ?? null);
     const nonNull = values.filter(
       (v) => v !== null && v !== undefined && String(v).trim() !== ""
     );
@@ -72,23 +81,23 @@ export function buildSummary(
 
   const sampleRows = rows.slice(0, 20).map((row) => {
     const result: Record<string, string | number | null> = {};
-    for (const col of columns) {
-      const v = row[col.name];
+    keyedColumns.forEach(({ key, name }, i) => {
+      const v = row[key];
       if (v === null || v === undefined || String(v).trim() === "") {
-        result[col.name] = null;
-      } else if (col.type === "number") {
+        result[name] = null;
+      } else if (columns[i].type === "number") {
         const n = Number(String(v).replace(/[,$%]/g, ""));
-        result[col.name] = isNaN(n) ? String(v) : n;
+        result[name] = isNaN(n) ? String(v) : n;
       } else {
-        result[col.name] = String(v);
+        result[name] = String(v);
       }
-    }
+    });
     return result;
   });
 
   return {
     rowCount: rows.length,
-    columnCount: columnNames.length,
+    columnCount: keyedColumns.length,
     columns,
     sampleRows,
     fileName,
