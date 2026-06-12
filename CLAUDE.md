@@ -3,17 +3,18 @@
 # Prism — AI-powered data reporting tool
 
 ## Stack
-Next.js 14 (App Router) · Tailwind CSS v4 · Shadcn/ui · Geist font · Framer Motion · Recharts · Claude API via Vercel AI SDK · React-pdf  
-Hosting: Vercel + Supabase
+Next.js 16 (App Router) · Tailwind CSS v4 · Shadcn/ui · Geist font · Framer Motion · Recharts · Gemini 2.5 Flash via Vercel AI SDK · React-pdf  
+Hosting: Vercel
 
 ## Current stage
-Stage 2 — File Ingestion (upload + parse + preview table)
+Launched — v1.0.0 (all 8 stages complete). Future work is maintenance and post-launch features.
 
 ## Architecture rules (never violate)
-1. Preprocess data in the browser before sending to Claude — never send raw spreadsheets. Send only summary stats + sample rows (max 20).
-2. No LangChain — call Claude API directly via fetch or Vercel AI SDK.
-3. AI describes charts, UI renders them. Claude returns JSON chart config, Recharts renders it. Claude never writes SVG or chart code.
-4. Browser and edge first. Papaparse and XLSX.js handle file parsing client-side.
+
+1. Preprocess data in the browser before sending to the AI — never send raw spreadsheets. Send only summary stats + sample rows (max 20). Enforced server-side (validation + 256KB body cap).
+2. No LangChain — call the AI provider directly via the Vercel AI SDK (`generateText`).
+3. AI describes charts, UI renders them. The model returns JSON chart config, Recharts renders it. The model never writes SVG or chart code.
+4. Browser first. Papaparse and exceljs handle file parsing client-side.
 5. Never use `any` in TypeScript — strict mode is on.
 6. Never leave an unhandled state — loading / error / empty must always exist.
 
@@ -27,7 +28,8 @@ Stage 2 — File Ingestion (upload + parse + preview table)
 - No gradients, no shadows except functional focus rings
 - Dark mode first (`defaultTheme="dark"` in ThemeProvider)
 
-## Claude API response shape (always validate exactly)
+## AI response shape (always validate exactly)
+
 ```json
 {
   "summary": "string",
@@ -45,43 +47,49 @@ Stage 2 — File Ingestion (upload + parse + preview table)
   "recommendations": ["string"]
 }
 ```
-If Claude returns anything outside this shape, throw a parse error and surface it in the UI — never silently fail.
+If the model returns anything outside this shape, throw a parse error and surface it in the UI — never silently fail.
 
 ## Folder structure
 ```
 app/
-  layout.tsx          — root layout, ThemeProvider, Geist fonts
-  page.tsx            — landing / upload entry point
+  layout.tsx           — root layout, ThemeProvider, Geist fonts, metadata
+  page.tsx             — upload / preview / analysis state machine
+  error.tsx            — route-level error boundary
+  opengraph-image.tsx  — generated OG image (next/og)
   api/analyze/
-    route.ts          — edge function, Claude API call (Stage 3)
+    route.ts           — AI analysis endpoint (rate-limited, validated)
 components/
-  theme-provider.tsx  — next-themes wrapper
-  ui/                 — shadcn primitives (never edit directly)
-  upload/             — file upload components (Stage 2)
-  preview/            — data preview table (Stage 2)
-  insights/           — AI insight cards (Stage 3)
-  charts/             — Recharts renderer (Stage 4)
-  export/             — PDF export (Stage 5)
+  theme-provider.tsx   — next-themes wrapper
+  theme-toggle.tsx     — light/dark toggle
+  ui/                  — shadcn primitives (never edit directly)
+  upload/              — file upload components
+  preview/             — data preview table + stats bar
+  insights/            — analysis view + loading skeleton
+  charts/              — Recharts renderer + per-chart error boundary
+  export/              — PDF export (React-pdf)
 lib/
-  parser.ts           — Papaparse + XLSX logic (Stage 2)
-  stats.ts            — preprocessing + summary stats (Stage 2)
-  prompt.ts           — Claude prompt builder (Stage 3)
-  utils.ts            — cn() helper
+  parser.ts            — Papaparse + exceljs parsing
+  stats.ts             — preprocessing + summary stats
+  prompt.ts            — AI prompt builder
+  validate.ts          — request + response shape validation
+  rate-limit.ts        — sliding-window rate limiter
+  utils.ts             — cn() helper
 types/
-  index.ts            — all shared TypeScript types
+  index.ts             — all shared TypeScript types
 public/
-  sample.csv          — demo dataset (12-month revenue/customers/churn)
+  sample.csv           — demo dataset (12-month revenue/customers/churn)
 ```
 
-## Stage reference
+## Stage reference (all complete)
+
 - Stage 1 — Foundation ✅ (Next.js + Tailwind v4 + Shadcn + design tokens)
-- Stage 2 — File Ingestion (upload + parse + preview table)
-- Stage 3 — AI Layer (Claude API + streaming + insight cards)
-- Stage 4 — Visualisation (JSON chart config → Recharts renderer)
-- Stage 5 — Export (React-pdf report + download)
-- Stage 6 — Polish (animations, skeletons, dark mode, mobile)
-- Stage 7 — Hardening (validation, rate limiting, error boundaries)
-- Stage 8 — Launch (domain, OG image, demo mode, v1.0.0 tag)
+- Stage 2 — File Ingestion ✅ (upload + parse + preview table)
+- Stage 3 — AI Layer ✅ (analysis endpoint + insight cards; Gemini via AI SDK)
+- Stage 4 — Visualisation ✅ (JSON chart config → Recharts renderer)
+- Stage 5 — Export ✅ (React-pdf report + download)
+- Stage 6 — Polish ✅ (animations, skeletons, dark mode, mobile)
+- Stage 7 — Hardening ✅ (validation, rate limiting, error boundaries)
+- Stage 8 — Launch ✅ (OG image, demo mode, Vercel deploy, v1.0.0 tag)
 
 ## Git discipline
 - Branch per feature: `feature/stage-2-upload`, etc.
