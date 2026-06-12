@@ -2,20 +2,51 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "ai";
 import { google } from "@ai-sdk/google";
 import { buildAnalysisPrompt } from "@/lib/prompt";
-import { validateAnalysisResult } from "@/lib/validate";
-import type { DatasetSummary } from "@/types";
+import {
+  validateAnalysisResult,
+  validateDatasetSummary,
+} from "@/lib/validate";
+import { rateLimit, getClientKey } from "@/lib/rate-limit";
+
+// A real DatasetSummary (20 sample rows + column metadata) is a few KB.
+// Anything near this cap means raw data is being sent — reject it.
+const MAX_BODY_BYTES = 256 * 1024;
 
 export async function POST(req: NextRequest) {
+  const limit = rateLimit(getClientKey(req));
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests — try again in a few minutes." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(limit.retryAfterSeconds) },
+      }
+    );
+  }
+
+  let raw: string;
   try {
-    const dataset = (await req.json()) as DatasetSummary;
+    raw = await req.text();
+  } catch {
+    return NextResponse.json({ error: "Unreadable request body" }, { status: 400 });
+  }
 
-    if (!dataset || typeof dataset !== "object" || !dataset.columns) {
-      return NextResponse.json(
-        { error: "Invalid request body — expected DatasetSummary" },
-        { status: 400 }
-      );
-    }
+  if (raw.length > MAX_BODY_BYTES) {
+    return NextResponse.json(
+      { error: "Request body too large — send a dataset summary, not raw data." },
+      { status: 413 }
+    );
+  }
 
+  let dataset;
+  try {
+    dataset = validateDatasetSummary(JSON.parse(raw));
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Invalid request body";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+
+  try {
     const prompt = buildAnalysisPrompt(dataset);
 
     const { text } = await generateText({
@@ -34,7 +65,19 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(result);
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Analysis failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    // Log the full error server-side; return a generic message so internal
+    // details (provider errors, stack traces) never reach the client
+    console.error("[/api/analyze]", e);
+    const isParseError =
+      e instanceof SyntaxError ||
+      (e instanceof Error && e.message.includes("field"));
+    return NextResponse.json(
+      {
+        error: isParseError
+          ? "The AI returned an unexpected response shape. Try again."
+          : "Analysis failed. Try again in a moment.",
+      },
+      { status: 502 }
+    );
   }
 }

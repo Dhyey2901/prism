@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { BarChart2, Lightbulb, TrendingUp } from "lucide-react";
 import type { AnalysisResult, DatasetSummary } from "@/types";
 import { ChartRenderer } from "@/components/charts/chart-renderer";
+import { ChartErrorBoundary } from "@/components/charts/chart-error-boundary";
 
 const container = {
   hidden: {},
@@ -120,7 +121,9 @@ export function AnalysisView({ result, dataset }: AnalysisViewProps) {
                   {CHART_TYPE_LABEL[chart.type] ?? chart.type}
                 </span>
               </div>
-              <ChartRenderer chart={chart} />
+              <ChartErrorBoundary title={chart.title}>
+                <ChartRenderer chart={chart} />
+              </ChartErrorBoundary>
               <p className="text-xs text-muted-foreground leading-snug">
                 {chart.insight}
               </p>
