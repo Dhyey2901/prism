@@ -1,6 +1,23 @@
+"use client";
+
+import { motion } from "framer-motion";
 import { BarChart2, Lightbulb, TrendingUp } from "lucide-react";
 import type { AnalysisResult, DatasetSummary } from "@/types";
 import { ChartRenderer } from "@/components/charts/chart-renderer";
+
+const container = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.08 } },
+};
+
+const item = {
+  hidden: { opacity: 0, y: 12 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.4, ease: "easeOut" as const },
+  },
+};
 
 interface AnalysisViewProps {
   result: AnalysisResult;
@@ -15,26 +32,37 @@ const CHART_TYPE_LABEL: Record<string, string> = {
 
 export function AnalysisView({ result, dataset }: AnalysisViewProps) {
   return (
-    <div className="flex flex-col gap-6">
+    <motion.div
+      className="flex flex-col gap-6"
+      variants={container}
+      initial="hidden"
+      animate="visible"
+    >
       {/* Header */}
-      <div className="flex items-center gap-2">
+      <motion.div variants={item} className="flex items-center gap-2">
         <Lightbulb className="size-4 text-primary shrink-0" />
         <p className="text-xs font-mono text-muted-foreground">
           AI analysis · {dataset.fileName} ·{" "}
           {dataset.rowCount.toLocaleString()} rows
         </p>
-      </div>
+      </motion.div>
 
       {/* Summary */}
-      <div className="rounded-lg border border-primary/20 bg-primary/5 px-5 py-4">
+      <motion.div
+        variants={item}
+        className="rounded-lg border border-primary/20 bg-primary/5 px-5 py-4"
+      >
         <p className="text-xs font-semibold text-primary mb-2 uppercase tracking-wider">
           Summary
         </p>
         <p className="text-sm text-foreground leading-relaxed">{result.summary}</p>
-      </div>
+      </motion.div>
 
       {/* Insights + Recommendations */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <motion.div
+        variants={item}
+        className="grid grid-cols-1 md:grid-cols-2 gap-4"
+      >
         {/* Insights */}
         <div className="rounded-lg border border-border bg-card px-5 py-4 flex flex-col gap-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -68,10 +96,13 @@ export function AnalysisView({ result, dataset }: AnalysisViewProps) {
             ))}
           </ol>
         </div>
-      </div>
+      </motion.div>
 
       {/* Charts */}
-      <div className="rounded-lg border border-border bg-card">
+      <motion.div
+        variants={item}
+        className="rounded-lg border border-border bg-card"
+      >
         <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
           <BarChart2 className="size-4 text-muted-foreground" />
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -96,7 +127,7 @@ export function AnalysisView({ result, dataset }: AnalysisViewProps) {
             </div>
           ))}
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

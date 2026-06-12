@@ -2,20 +2,28 @@
 
 import { useCallback, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, ArrowLeft, Loader2, RotateCcw, Sparkles } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowRight,
+  ArrowLeft,
+  RotateCcw,
+  Sparkles,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropZone } from "@/components/upload/drop-zone";
 import { DataTable } from "@/components/preview/data-table";
 import { StatsBar } from "@/components/preview/stats-bar";
 import { AnalysisView } from "@/components/insights/analysis-view";
+import { AnalysisSkeleton } from "@/components/insights/analysis-skeleton";
 import { ExportButton } from "@/components/export/export-button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { parseFile } from "@/lib/parser";
 import type { AnalysisResult, DatasetSummary } from "@/types";
 
 type PageState =
   | { status: "idle" }
   | { status: "parsing" }
-  | { status: "ready"; dataset: DatasetSummary }
+  | { status: "ready"; dataset: DatasetSummary; analyzeError?: string }
   | { status: "analyzing"; dataset: DatasetSummary }
   | { status: "done"; dataset: DatasetSummary; result: AnalysisResult }
   | { status: "error"; message: string };
@@ -53,9 +61,11 @@ export default function Home() {
       const result = (await res.json()) as AnalysisResult;
       setState({ status: "done", dataset, result });
     } catch (e) {
+      // Keep the parsed dataset — surface the error inline in the preview
       setState({
-        status: "error",
-        message: e instanceof Error ? e.message : "Analysis failed.",
+        status: "ready",
+        dataset,
+        analyzeError: e instanceof Error ? e.message : "Analysis failed.",
       });
     }
   }, [state]);
@@ -73,15 +83,10 @@ export default function Home() {
     state.status === "parsing" ||
     state.status === "error";
 
-  const isPreviewView =
-    state.status === "ready" || state.status === "analyzing";
-
-  const isDoneView = state.status === "done";
-
   return (
     <main className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 h-14 border-b border-border/50 shrink-0">
+      <header className="flex items-center justify-between px-4 sm:px-6 h-14 border-b border-border/50 shrink-0">
         <button
           onClick={reset}
           className="text-sm font-semibold tracking-tight text-foreground hover:text-primary transition-colors"
@@ -89,38 +94,41 @@ export default function Home() {
           Prism
         </button>
 
-        <AnimatePresence>
-          {!isUploadView && (
-            <motion.div
-              initial={{ opacity: 0, x: 8 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 8 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-              className="flex items-center gap-2"
-            >
-              {isDoneView && (
+        <div className="flex items-center gap-1">
+          <AnimatePresence>
+            {!isUploadView && (
+              <motion.div
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 8 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="flex items-center gap-1"
+              >
+                {state.status === "done" && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={backToPreview}
+                    className="gap-1.5 h-8 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <ArrowLeft className="size-3" />
+                    <span className="hidden sm:inline">Back to data</span>
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={backToPreview}
+                  onClick={reset}
                   className="gap-1.5 h-8 text-xs text-muted-foreground hover:text-foreground"
                 >
-                  <ArrowLeft className="size-3" />
-                  Back to data
+                  <RotateCcw className="size-3" />
+                  <span className="hidden sm:inline">Upload different file</span>
                 </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={reset}
-                className="gap-1.5 h-8 text-xs text-muted-foreground hover:text-foreground"
-              >
-                <RotateCcw className="size-3" />
-                Upload different file
-              </Button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <ThemeToggle />
+        </div>
       </header>
 
       {/* Body */}
@@ -132,7 +140,7 @@ export default function Home() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.3, ease: "easeOut" }}
-            className="flex-1 flex flex-col items-center justify-center px-6 py-16"
+            className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-16"
           >
             <div className="w-full max-w-md flex flex-col gap-6">
               <div className="text-center space-y-2">
@@ -155,19 +163,38 @@ export default function Home() {
           </motion.div>
         )}
 
-        {isPreviewView && (
+        {state.status === "ready" && (
           <motion.div
             key="preview"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.35, ease: "easeOut" }}
-            className="flex-1 flex flex-col px-6 py-8 w-full max-w-6xl mx-auto gap-6"
+            className="flex-1 flex flex-col px-4 sm:px-6 py-8 w-full max-w-6xl mx-auto gap-6"
           >
             <StatsBar dataset={state.dataset} />
             <DataTable dataset={state.dataset} />
 
-            <div className="flex items-center justify-between">
+            {state.analyzeError && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25, ease: "easeOut" }}
+                className="flex items-start gap-2.5 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3"
+              >
+                <AlertCircle className="size-4 text-destructive shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium text-foreground">
+                    Analysis failed
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {state.analyzeError} — your data is still here, try again.
+                  </p>
+                </div>
+              </motion.div>
+            )}
+
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <p className="text-[11px] font-mono text-muted-foreground/40">
                 {state.dataset.columnCount} columns ·{" "}
                 {state.dataset.rowCount.toLocaleString()} rows parsed
@@ -175,34 +202,37 @@ export default function Home() {
               <Button
                 size="sm"
                 onClick={handleAnalyze}
-                disabled={state.status === "analyzing"}
                 className="gap-2 h-9 px-4 text-sm font-medium"
               >
-                {state.status === "analyzing" ? (
-                  <>
-                    <Loader2 className="size-3.5 animate-spin" />
-                    Analyzing…
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="size-3.5" />
-                    Analyze with AI
-                    <ArrowRight className="size-3.5" />
-                  </>
-                )}
+                <Sparkles className="size-3.5" />
+                {state.analyzeError ? "Retry analysis" : "Analyze with AI"}
+                <ArrowRight className="size-3.5" />
               </Button>
             </div>
           </motion.div>
         )}
 
-        {isDoneView && (
+        {state.status === "analyzing" && (
+          <motion.div
+            key="analyzing"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.35, ease: "easeOut" }}
+            className="flex-1 flex flex-col px-4 sm:px-6 py-8 w-full max-w-4xl mx-auto"
+          >
+            <AnalysisSkeleton fileName={state.dataset.fileName} />
+          </motion.div>
+        )}
+
+        {state.status === "done" && (
           <motion.div
             key="done"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.35, ease: "easeOut" }}
-            className="flex-1 flex flex-col px-6 py-8 w-full max-w-4xl mx-auto gap-6"
+            className="flex-1 flex flex-col px-4 sm:px-6 py-8 w-full max-w-4xl mx-auto gap-6"
           >
             <AnalysisView result={state.result} dataset={state.dataset} />
             <div className="flex justify-end pb-4">
