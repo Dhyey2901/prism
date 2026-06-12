@@ -76,6 +76,23 @@ export default function Home() {
     }
   }, [state]);
 
+  const loadDemo = useCallback(async () => {
+    setState({ status: "parsing" });
+    try {
+      const res = await fetch("/sample.csv");
+      if (!res.ok) throw new Error("Couldn't load the sample dataset.");
+      const blob = await res.blob();
+      const file = new File([blob], "sample.csv", { type: "text/csv" });
+      const dataset = await parseFile(file);
+      setState({ status: "ready", dataset });
+    } catch (e) {
+      setState({
+        status: "error",
+        message: e instanceof Error ? e.message : "Failed to load demo data.",
+      });
+    }
+  }, []);
+
   const reset = useCallback(() => setState({ status: "idle" }), []);
 
   const isUploadView =
@@ -156,9 +173,22 @@ export default function Home() {
                 error={state.status === "error" ? state.message : null}
               />
 
-              <p className="text-center text-[11px] font-mono text-muted-foreground/40 tracking-wider">
-                No data stored&nbsp;&nbsp;·&nbsp;&nbsp;Processed in your browser
-              </p>
+              <div className="flex flex-col items-center gap-4">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={loadDemo}
+                  disabled={state.status === "parsing"}
+                  className="gap-1.5 h-8 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <Sparkles className="size-3" />
+                  Try with sample data
+                </Button>
+
+                <p className="text-center text-[11px] font-mono text-muted-foreground/40 tracking-wider">
+                  No data stored&nbsp;&nbsp;·&nbsp;&nbsp;Processed in your browser
+                </p>
+              </div>
             </div>
           </motion.div>
         )}

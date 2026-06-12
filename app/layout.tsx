@@ -14,9 +14,25 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
+  ),
   title: "Prism — AI-powered data reporting",
   description:
-    "Turn raw spreadsheets into insights, visualizations, and exportable reports.",
+    "Turn raw spreadsheets into insights, visualizations, and exportable reports. Parsed in your browser — no raw data ever leaves your machine.",
+  openGraph: {
+    title: "Prism — AI-powered data reporting",
+    description:
+      "Spreadsheets in. Insights, charts, and PDF reports out. No raw data ever leaves your browser.",
+    siteName: "Prism",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Prism — AI-powered data reporting",
+    description:
+      "Spreadsheets in. Insights, charts, and PDF reports out. No raw data ever leaves your browser.",
+  },
 };
 
 export default function RootLayout({
