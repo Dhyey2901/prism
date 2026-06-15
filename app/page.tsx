@@ -17,6 +17,7 @@ import { StatsBar } from "@/components/preview/stats-bar";
 import { AnalysisView } from "@/components/insights/analysis-view";
 import { AnalysisSkeleton } from "@/components/insights/analysis-skeleton";
 import { ExportButton } from "@/components/export/export-button";
+import { ShareButton } from "@/components/history/share-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { HistoryPanel } from "@/components/history/history-panel";
 import { SignInButton, UserButton, useUser } from "@clerk/nextjs";
@@ -28,7 +29,7 @@ type PageState =
   | { status: "parsing" }
   | { status: "ready"; dataset: DatasetSummary; analyzeError?: string }
   | { status: "analyzing"; dataset: DatasetSummary }
-  | { status: "done"; dataset: DatasetSummary; result: AnalysisResult }
+  | { status: "done"; dataset: DatasetSummary; result: AnalysisResult; savedId?: string }
   | { status: "error"; message: string };
 
 export default function Home() {
@@ -65,13 +66,22 @@ export default function Home() {
       }
       const result = (await res.json()) as AnalysisResult;
       setState({ status: "done", dataset, result });
-      // Auto-save for signed-in users — fire and forget, never block the UI
+      // Auto-save for signed-in users — capture the ID for the share button
       if (isSignedIn) {
         fetch("/api/analyses", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ dataset, result }),
-        }).catch(() => {/* silent — save failure should never surface */});
+        })
+          .then((r) => r.json())
+          .then((saved: { id?: string }) => {
+            if (saved.id) {
+              setState((prev) =>
+                prev.status === "done" ? { ...prev, savedId: saved.id } : prev
+              );
+            }
+          })
+          .catch(() => {});
       }
     } catch (e) {
       // Keep the parsed dataset — surface the error inline in the preview
@@ -317,7 +327,8 @@ export default function Home() {
             className="flex-1 flex flex-col px-4 sm:px-6 py-8 w-full max-w-4xl mx-auto gap-6"
           >
             <AnalysisView result={state.result} dataset={state.dataset} />
-            <div className="flex justify-end pb-4">
+            <div className="flex justify-end gap-2 pb-4">
+              {state.savedId && <ShareButton id={state.savedId} />}
               <ExportButton result={state.result} dataset={state.dataset} />
             </div>
           </motion.div>
