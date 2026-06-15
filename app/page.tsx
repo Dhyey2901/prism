@@ -62,6 +62,14 @@ export default function Home() {
       }
       const result = (await res.json()) as AnalysisResult;
       setState({ status: "done", dataset, result });
+      // Auto-save for signed-in users — fire and forget, never block the UI
+      if (isSignedIn) {
+        fetch("/api/analyses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dataset, result }),
+        }).catch(() => {/* silent — save failure should never surface */});
+      }
     } catch (e) {
       // Keep the parsed dataset — surface the error inline in the preview
       setState({
