@@ -17,6 +17,7 @@ import { AnalysisView } from "@/components/insights/analysis-view";
 import { AnalysisSkeleton } from "@/components/insights/analysis-skeleton";
 import { ExportButton } from "@/components/export/export-button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SignInButton, UserButton, useUser } from "@clerk/nextjs";
 import { parseFile } from "@/lib/parser";
 import type { AnalysisResult, DatasetSummary } from "@/types";
 
@@ -29,6 +30,7 @@ type PageState =
   | { status: "error"; message: string };
 
 export default function Home() {
+  const { isSignedIn } = useUser();
   const [state, setState] = useState<PageState>({ status: "idle" });
 
   const handleFile = useCallback(async (file: File) => {
@@ -145,6 +147,19 @@ export default function Home() {
             )}
           </AnimatePresence>
           <ThemeToggle />
+          {isSignedIn ? (
+            <UserButton />
+          ) : (
+            <SignInButton mode="modal">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs text-muted-foreground hover:text-foreground"
+              >
+                Sign in
+              </Button>
+            </SignInButton>
+          )}
         </div>
       </header>
 

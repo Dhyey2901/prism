@@ -39,6 +39,19 @@ export interface AnalysisResult {
   recommendations: string[];
 }
 
+// ─── Saved Analysis (DB row) ──────────────────────────────────────────────────
+
+export interface SavedAnalysis {
+  id: string;
+  userId: string;
+  filename: string;
+  fileSizeBytes: number;
+  rowCount: number;
+  columnCount: number;
+  result: AnalysisResult;
+  createdAt: Date;
+}
+
 // ─── Upload state machine ──────────────────────────────────────────────────────
 
 export type UploadStatus =
