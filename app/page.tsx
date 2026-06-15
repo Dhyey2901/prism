@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   RotateCcw,
   Sparkles,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropZone } from "@/components/upload/drop-zone";
@@ -17,9 +18,10 @@ import { AnalysisView } from "@/components/insights/analysis-view";
 import { AnalysisSkeleton } from "@/components/insights/analysis-skeleton";
 import { ExportButton } from "@/components/export/export-button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { HistoryPanel } from "@/components/history/history-panel";
 import { SignInButton, UserButton, useUser } from "@clerk/nextjs";
 import { parseFile } from "@/lib/parser";
-import type { AnalysisResult, DatasetSummary } from "@/types";
+import type { AnalysisResult, DatasetSummary, SavedAnalysis } from "@/types";
 
 type PageState =
   | { status: "idle" }
@@ -32,6 +34,7 @@ type PageState =
 export default function Home() {
   const { isSignedIn } = useUser();
   const [state, setState] = useState<PageState>({ status: "idle" });
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const handleFile = useCallback(async (file: File) => {
     setState({ status: "parsing" });
@@ -105,6 +108,21 @@ export default function Home() {
 
   const reset = useCallback(() => setState({ status: "idle" }), []);
 
+  const handleLoadFromHistory = useCallback((analysis: SavedAnalysis) => {
+    setState({
+      status: "done",
+      dataset: {
+        fileName: analysis.filename,
+        fileSizeBytes: analysis.fileSizeBytes,
+        rowCount: analysis.rowCount,
+        columnCount: analysis.columnCount,
+        columns: [],
+        sampleRows: [],
+      },
+      result: analysis.result,
+    });
+  }, []);
+
   const isUploadView =
     state.status === "idle" ||
     state.status === "parsing" ||
@@ -155,6 +173,17 @@ export default function Home() {
             )}
           </AnimatePresence>
           <ThemeToggle />
+          {isSignedIn && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setHistoryOpen(true)}
+              className="gap-1.5 h-8 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Clock className="size-3" />
+              <span className="hidden sm:inline">History</span>
+            </Button>
+          )}
           {isSignedIn ? (
             <UserButton />
           ) : (
@@ -294,6 +323,12 @@ export default function Home() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <HistoryPanel
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        onLoad={handleLoadFromHistory}
+      />
     </main>
   );
 }
