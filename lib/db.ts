@@ -25,20 +25,42 @@ export async function createAnalysis(params: {
   rowCount: number;
   columnCount: number;
   result: AnalysisResult;
+  embedding?: number[];
 }): Promise<SavedAnalysis> {
+  const embeddingLiteral = params.embedding
+    ? `[${params.embedding.join(",")}]`
+    : null;
+
   const rows = await sql`
-    INSERT INTO analyses (user_id, filename, file_size_bytes, row_count, column_count, result)
+    INSERT INTO analyses (user_id, filename, file_size_bytes, row_count, column_count, result, embedding)
     VALUES (
       ${params.userId},
       ${params.filename},
       ${params.fileSizeBytes},
       ${params.rowCount},
       ${params.columnCount},
-      ${JSON.stringify(params.result)}
+      ${JSON.stringify(params.result)},
+      ${embeddingLiteral}::vector
     )
     RETURNING *
   `;
   return toSavedAnalysis(rows[0]);
+}
+
+export async function searchAnalyses(
+  userId: string,
+  embedding: number[]
+): Promise<SavedAnalysis[]> {
+  const embeddingLiteral = `[${embedding.join(",")}]`;
+  const rows = await sql`
+    SELECT *
+    FROM analyses
+    WHERE user_id = ${userId}
+      AND embedding IS NOT NULL
+    ORDER BY embedding <=> ${embeddingLiteral}::vector
+    LIMIT 10
+  `;
+  return rows.map(toSavedAnalysis);
 }
 
 export async function getAnalysesByUser(userId: string): Promise<SavedAnalysis[]> {

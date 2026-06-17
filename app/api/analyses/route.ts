@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { createAnalysis, getAnalysesByUser } from "@/lib/db";
+import { generateEmbedding, embeddingTextFromAnalysis } from "@/lib/embeddings";
 import type { AnalysisResult, DatasetSummary } from "@/types";
 
 export async function GET() {
@@ -31,6 +32,18 @@ export async function POST(req: Request) {
   }
 
   try {
+    let embedding: number[] | undefined;
+    try {
+      const text = embeddingTextFromAnalysis(
+        body.dataset.fileName,
+        body.result.summary,
+        body.result.insights
+      );
+      embedding = await generateEmbedding(text);
+    } catch {
+      // embedding is best-effort — save without it if it fails
+    }
+
     const analysis = await createAnalysis({
       userId,
       filename: body.dataset.fileName,
@@ -38,6 +51,7 @@ export async function POST(req: Request) {
       rowCount: body.dataset.rowCount,
       columnCount: body.dataset.columnCount,
       result: body.result,
+      embedding,
     });
     return NextResponse.json(analysis, { status: 201 });
   } catch (err) {

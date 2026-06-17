@@ -63,4 +63,17 @@ await sql`
   ON messages (analysis_id, created_at ASC)
 `;
 
-console.log("Migration complete — analyses + messages tables ready.");
+// ── pgvector semantic search ──────────────────────────────────────────────────
+await sql`CREATE EXTENSION IF NOT EXISTS vector`;
+
+await sql`
+  ALTER TABLE analyses
+  ADD COLUMN IF NOT EXISTS embedding vector(768)
+`;
+
+await sql`
+  CREATE INDEX IF NOT EXISTS analyses_embedding_hnsw_idx
+  ON analyses USING hnsw (embedding vector_cosine_ops)
+`;
+
+console.log("Migration complete — analyses + messages tables + pgvector ready.");
