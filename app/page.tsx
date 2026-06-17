@@ -10,6 +10,7 @@ import {
   Sparkles,
   Clock,
 } from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { DropZone } from "@/components/upload/drop-zone";
 import { DataTable } from "@/components/preview/data-table";
@@ -180,9 +181,10 @@ export default function Home() {
       <header className="flex items-center justify-between px-4 sm:px-6 h-14 border-b border-border/50 shrink-0">
         <button
           onClick={reset}
-          className="text-sm font-semibold tracking-tight text-foreground hover:text-primary transition-colors"
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
         >
-          Prism
+          <Image src="/logo.png" alt="Prism" width={24} height={24} className="shrink-0" />
+          <span className="text-sm font-semibold tracking-tight text-foreground">Prism</span>
         </button>
 
         <div className="flex items-center gap-1">
@@ -259,7 +261,10 @@ export default function Home() {
           >
             <div className="w-full max-w-md flex flex-col gap-6">
               <div className="text-center space-y-2">
-                <h1 className="text-4xl font-semibold tracking-tight">Prism</h1>
+                <div className="flex items-center justify-center gap-3">
+                  <Image src="/logo.png" alt="Prism" width={40} height={40} className="shrink-0" />
+                  <h1 className="text-4xl font-semibold tracking-tight">Prism</h1>
+                </div>
                 <p className="text-sm text-muted-foreground">
                   Upload a spreadsheet to get started
                 </p>
