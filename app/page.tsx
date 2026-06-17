@@ -262,7 +262,7 @@ export default function Home() {
             <div className="w-full max-w-md flex flex-col gap-6">
               <div className="text-center space-y-2">
                 <div className="flex items-center justify-center gap-3">
-                  <Image src="/logo.png" alt="Prism" width={40} height={40} className="shrink-0" />
+                  <Image src="/logo.png" alt="Prism" width={32} height={32} className="shrink-0" />
                   <h1 className="text-4xl font-semibold tracking-tight">Prism</h1>
                 </div>
                 <p className="text-sm text-muted-foreground">
