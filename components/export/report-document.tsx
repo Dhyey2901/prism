@@ -3,6 +3,7 @@ import {
   Page,
   View,
   Text,
+  Image,
   StyleSheet,
 } from "@react-pdf/renderer";
 import type { AnalysisResult, DatasetSummary } from "@/types";
@@ -110,6 +111,12 @@ const s = StyleSheet.create({
     color: "#52525b",
     lineHeight: 1.5,
   },
+  chartImage: {
+    width: "100%",
+    height: 130,
+    borderRadius: 4,
+    marginBottom: 6,
+  },
 
   // Footer
   footer: {
@@ -127,12 +134,14 @@ interface ReportDocumentProps {
   result: AnalysisResult;
   dataset: DatasetSummary;
   generatedAt: string;
+  chartImages?: string[];
 }
 
 export function ReportDocument({
   result,
   dataset,
   generatedAt,
+  chartImages,
 }: ReportDocumentProps) {
   return (
     <Document title={`Prism Report — ${dataset.fileName}`}>
@@ -186,6 +195,9 @@ export function ReportDocument({
                 {CHART_TYPE_LABEL[chart.type] ?? chart.type} · {chart.x_key}{" "}
                 vs {chart.y_key} · {chart.data.length} data points
               </Text>
+              {chartImages?.[i] ? (
+                <Image src={chartImages[i]} style={s.chartImage} />
+              ) : null}
               <Text style={s.chartInsight}>{chart.insight}</Text>
             </View>
           ))}
