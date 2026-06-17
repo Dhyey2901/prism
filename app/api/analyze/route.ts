@@ -36,15 +36,21 @@ export async function POST(req: NextRequest) {
   }
 
   let dataset;
+  let focusText: string | undefined;
   try {
-    dataset = validateDatasetSummary(JSON.parse(raw));
+    const body = JSON.parse(raw) as Record<string, unknown>;
+    focusText =
+      typeof body.focusText === "string" && body.focusText.trim()
+        ? body.focusText.trim().slice(0, 500)
+        : undefined;
+    dataset = validateDatasetSummary(body);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Invalid request body";
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
   try {
-    const prompt = buildAnalysisPrompt(dataset);
+    const prompt = buildAnalysisPrompt(dataset, focusText);
     const result = streamText({
       model: google("gemini-2.5-flash"),
       prompt,

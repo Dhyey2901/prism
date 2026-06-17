@@ -122,7 +122,9 @@ export function AnalysisView({ result, dataset }: AnalysisViewProps) {
                 </span>
               </div>
               <ChartErrorBoundary title={chart.title}>
-                <ChartRenderer chart={chart} />
+                <div data-chart-index={i}>
+                  <ChartRenderer chart={chart} />
+                </div>
               </ChartErrorBoundary>
               <p className="text-xs text-muted-foreground leading-snug">
                 {chart.insight}

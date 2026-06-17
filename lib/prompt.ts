@@ -1,6 +1,6 @@
 import type { AnalysisResult, DatasetSummary } from "@/types";
 
-export function buildAnalysisPrompt(dataset: DatasetSummary): string {
+export function buildAnalysisPrompt(dataset: DatasetSummary, focusText?: string): string {
   const colRows = dataset.columns
     .map(
       (c) =>
@@ -61,7 +61,7 @@ Return exactly this JSON shape — no extra keys, no omitted keys:
   ]
 }
 
-Rules:
+${focusText ? `Priority focus: "${focusText}". Weight your summary, insights, charts, and recommendations toward this area.\n` : ""}Rules:
 - insights: exactly 3-5 strings, each citing a specific number or pattern visible in the sample data
 - charts: exactly 1-3 items; "type" must be "bar", "line", or "pie"; x_key and y_key must be exact column names from the Column metadata table; data array must use real values from the sample rows
 - recommendations: exactly 3-5 strings, each a concrete action

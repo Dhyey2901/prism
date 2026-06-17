@@ -47,6 +47,7 @@ export default function Home() {
   const { isSignedIn } = useUser();
   const [state, setState] = useState<PageState>({ status: "idle" });
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [focusText, setFocusText] = useState("");
 
   const handleFile = useCallback(async (file: File) => {
     setState({ status: "parsing" });
@@ -69,7 +70,7 @@ export default function Home() {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(dataset),
+        body: JSON.stringify({ ...dataset, focusText: focusText.trim() || undefined }),
       });
       if (!res.ok) {
         const body = (await res.json()) as { error?: string };
@@ -126,7 +127,7 @@ export default function Home() {
         analyzeError: e instanceof Error ? e.message : "Analysis failed.",
       });
     }
-  }, [state, isSignedIn]);
+  }, [state, isSignedIn, focusText]);
 
   const backToPreview = useCallback(() => {
     if (state.status === "done") {
@@ -320,6 +321,14 @@ export default function Home() {
                 </div>
               </motion.div>
             )}
+
+            <input
+              type="text"
+              value={focusText}
+              onChange={(e) => setFocusText(e.target.value)}
+              placeholder="Focus on a specific aspect (optional) — e.g. churn trends, Q1 vs Q2"
+              className="w-full text-sm bg-transparent border border-border rounded-md px-3 py-2 placeholder:text-muted-foreground/40 outline-none focus:border-primary/50 transition-colors"
+            />
 
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <p className="text-[11px] font-mono text-muted-foreground/40">
