@@ -1,36 +1,139 @@
 # Prism
 
-AI-powered data reporting — turn raw spreadsheets into insights, visualizations, and exportable reports in seconds.
+AI-powered data reporting — turn raw spreadsheets into insights, charts, and exportable PDF reports in seconds.
 
-## Overview
+**Live:** [prismanalytics.app](https://prismanalytics.app)
 
-Prism parses your data entirely in the browser, sends only a compact statistical summary to the AI, and returns a structured analysis with interactive charts and actionable recommendations — no raw data ever leaves your machine.
+---
 
-## Stack
+## What It Does
 
-| Layer      | Technology                       |
-| ---------- | -------------------------------- |
-| Framework  | Next.js 16 (App Router)          |
-| Styling    | Tailwind CSS v4 + Shadcn/ui      |
-| Typography | Geist Sans + Geist Mono          |
-| Animation  | Framer Motion                    |
-| Charts     | Recharts                         |
-| AI         | Gemini 2.5 Flash (Vercel AI SDK) |
-| Parsing    | Papaparse + exceljs (client-side)|
-| Export     | @react-pdf/renderer              |
-| Hosting    | Vercel                           |
+Upload a CSV or Excel file. Prism parses it entirely in your browser, sends only a compact statistical summary to Gemini 2.5 Flash, and streams back a structured analysis with:
+
+- Executive summary (streamed live as it generates)
+- Key insights with specific numbers from your data
+- Interactive charts (bar, line, pie) rendered from a validated JSON config
+- Actionable recommendations
+- Downloadable PDF report with chart images embedded
+- Follow-up chat — ask questions about your data after the analysis
+
+No raw data ever leaves your machine. The AI never sees your full spreadsheet.
+
+---
+
+## How To Use
+
+### Option 1 — Try the demo
+
+Go to [prismanalytics.app](https://prismanalytics.app) and click **Try with sample data**. No file needed — it runs the full pipeline on a built-in 12-month revenue dataset.
+
+### Option 2 — Upload your own file
+
+1. Drop a CSV, XLSX, or XLS file onto the upload zone (max 10MB)
+2. Preview your parsed data and column stats
+3. Optionally type a focus area — e.g. "churn trends" or "Q1 vs Q2 revenue"
+4. Click **Analyze with AI**
+5. Watch the summary stream in live, then see the full analysis
+6. Click **Export PDF** to download a report with charts included
+7. Sign in to save analyses, view history, share links, and ask follow-up questions via chat
+
+---
 
 ## Architecture
 
 ```text
-Upload → Browser parse → Summary stats → AI analysis → JSON chart config → Recharts → PDF export
+Browser                          Server                        AI
+──────                           ──────                        ──
+File drop
+  → Papaparse / exceljs parse
+  → Column types + null counts
+  → Up to 20 sample rows
+  → Summary stats object
+                        POST /api/analyze
+                          → Rate limit check (10 req / 10 min / IP)
+                          → Body size cap (256KB)
+                          → Schema validation
+                          → Prompt construction
+                                              → Gemini 2.5 Flash
+                                              ← Stream text chunks
+                        ← toTextStreamResponse()
+  ← ReadableStream
+  → Partial JSON regex → live summary preview
+  → Full JSON parse + validate on stream end
+  → Recharts renders chart config
+  → SVG → canvas → PNG → PDF embed
 ```
 
-- **No raw data to the AI.** Papaparse/exceljs extract shape, column types, null counts, and up to 20 sample rows in the browser. Only that compact summary is sent — and the server enforces it with a strict request validator and a 256KB body cap.
-- **AI describes, Recharts renders.** The model returns a JSON chart config validated against a strict schema. The UI renders it — the AI never writes SVG or JSX.
-- **Fails loudly, recovers gracefully.** Malformed AI responses surface as typed parse errors. A failed analysis returns you to your parsed data with one-click retry. Each chart has its own error boundary.
+**Key design decisions:**
 
-## Getting Started
+- **No raw data to the AI.** The server enforces a 256KB body cap and validates the request shape before the prompt is built. The AI receives column metadata and at most 20 sample rows — never the full file.
+- **AI describes, Recharts renders.** The model returns a JSON chart config (type, keys, data). The UI renders it. The AI never writes SVG or JSX code.
+- **Streaming first.** `streamText` + `ReadableStream` on the client means the summary starts appearing within 200ms of the request. Partial JSON regex extracts the summary mid-stream so the user can read while the AI is still generating.
+- **Chart images in PDF without extra dependencies.** SVG serialization + canvas at 2× scale — no `html2canvas`. Each chart container has a `data-chart-index` attribute; export queries them, clones the SVG, injects a background rect, draws to canvas, and passes PNG data URLs to `@react-pdf/renderer`.
+- **Fails loudly, recovers gracefully.** Malformed AI responses throw typed parse errors surfaced in the UI. A failed analysis returns you to your data with one-click retry. Each chart has its own React error boundary.
+
+---
+
+## Stack
+
+| Layer      | Technology                         |
+| ---------- | ---------------------------------- |
+| Framework  | Next.js 16 (App Router)            |
+| Styling    | Tailwind CSS v4 + Shadcn/ui        |
+| Typography | Geist Sans + Geist Mono            |
+| Animation  | Framer Motion                      |
+| Charts     | Recharts                           |
+| AI         | Gemini 2.5 Flash via Vercel AI SDK |
+| Parsing    | Papaparse + exceljs (client-side)  |
+| Export     | @react-pdf/renderer                |
+| Auth       | Clerk                              |
+| Database   | Neon Postgres                      |
+| Hosting    | Vercel                             |
+
+---
+
+## Project Structure
+
+```text
+app/
+  layout.tsx              Root layout — Geist fonts, ThemeProvider, Clerk, metadata
+  page.tsx                Upload / preview / streaming / analysis state machine
+  error.tsx               Route-level error boundary
+  opengraph-image.tsx     Generated OG image (next/og)
+  api/
+    analyze/route.ts      Rate-limited, validated AI analysis endpoint (streamText)
+    analyses/
+      route.ts            Save + list analyses (auth required)
+      [id]/
+        route.ts          Get / delete a saved analysis
+        chat/route.ts     Streamed follow-up chat per analysis
+
+components/
+  upload/                 Drag-and-drop file zone
+  preview/                Data table + stats bar
+  insights/               Analysis view + streaming skeleton
+  charts/                 Recharts renderer + per-chart error boundary
+  chat/                   Follow-up chat panel
+  export/                 PDF document + export button (SVG capture)
+  history/                History sidebar + share button
+
+lib/
+  parser.ts               Papaparse + exceljs — client-side file parsing
+  stats.ts                Column type inference + summary stats
+  prompt.ts               AI prompt builder (analysis + chat system prompt)
+  validate.ts             Request + response shape validation
+  db.ts                   Neon Postgres queries (analyses + messages)
+  rate-limit.ts           Sliding-window rate limiter (in-memory, per IP)
+
+types/index.ts            All shared TypeScript types
+public/
+  sample.csv              Demo dataset — 12-month revenue / customers / churn
+  logo.png                Prism logo
+```
+
+---
+
+## Running Locally
 
 ```bash
 # Install dependencies
@@ -38,75 +141,76 @@ npm install
 
 # Set up environment
 cp .env.local.example .env.local
-# Add your GOOGLE_GENERATIVE_AI_API_KEY (free at aistudio.google.com)
+# Fill in the required variables (see below)
 
-# Run dev server
+# Run database migrations
+npm run db:migrate
+
+# Start dev server
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) — or click **Try with sample data** to skip the upload.
+Open [http://localhost:3000](http://localhost:3000).
+
+---
 
 ## Environment Variables
 
-| Variable                       | Description                                                             |
-| ------------------------------ | ----------------------------------------------------------------------- |
-| `GOOGLE_GENERATIVE_AI_API_KEY` | Gemini API key from [aistudio.google.com](https://aistudio.google.com)  |
-| `NEXT_PUBLIC_SITE_URL`         | Production URL (for OG/social images) — optional locally                |
+| Variable | Required | Description |
+| --- | --- | --- |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | Yes | Gemini API key — [aistudio.google.com](https://aistudio.google.com) |
+| `DATABASE_URL` | Yes | Neon Postgres connection string |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Yes | Clerk publishable key |
+| `CLERK_SECRET_KEY` | Yes | Clerk secret key |
+| `NEXT_PUBLIC_SITE_URL` | No | Production URL — used for OG image absolute URLs |
 
-## Project Structure
+Auth and database are required for history, sharing, and chat. The core upload → analyze → export flow works without them.
 
-```text
-app/
-  layout.tsx           Root layout — Geist fonts, ThemeProvider, metadata
-  page.tsx             Upload / preview / analysis state machine
-  error.tsx            Route-level error boundary
-  opengraph-image.tsx  Generated OG image
-  api/analyze/
-    route.ts           Rate-limited, validated AI analysis endpoint
-components/
-  ui/                  Shadcn primitives
-  upload/              Drag-and-drop file zone
-  preview/             Data preview table + stats bar
-  insights/            Analysis view + loading skeleton
-  charts/              Recharts renderer + per-chart error boundary
-  export/              PDF report document + export button
-lib/
-  parser.ts            Papaparse + exceljs parsing
-  stats.ts             Column type inference + summary stats
-  prompt.ts            AI prompt builder
-  validate.ts          Request + response shape validation
-  rate-limit.ts        Sliding-window rate limiter
-types/
-  index.ts             Shared TypeScript types
-public/
-  sample.csv           Demo dataset — 12-month revenue/customers/churn
-```
+---
 
 ## Security
 
 - Client-side parsing — files never touch a server
 - Server-side request validation with hard caps (20 sample rows, 256KB body)
 - Rate limiting: 10 analyses per 10 minutes per IP
+- Auth-gated routes: history, chat, and share endpoints require a valid Clerk session
 - Generic error responses — provider errors logged server-side only
-- 0 `npm audit` vulnerabilities (xlsx replaced with exceljs over unpatched CVEs)
+- 0 `npm audit` vulnerabilities (xlsx replaced with exceljs due to unpatched CVEs)
 
-## Roadmap
+---
 
-- [x] Stage 1 — Foundation (Next.js + Tailwind + Shadcn + design system)
-- [x] Stage 2 — File Ingestion (upload + parse + preview table)
-- [x] Stage 3 — AI Layer (analysis endpoint + insight cards)
-- [x] Stage 4 — Visualisation (JSON chart config → Recharts)
-- [x] Stage 5 — Export (React-pdf report download)
-- [x] Stage 6 — Polish (skeletons, staggered animations, theme toggle, mobile)
-- [x] Stage 7 — Hardening (validation, rate limiting, error boundaries)
-- [x] Stage 8 — Launch (OG image, demo mode, v1.0.0)
+## AI Response Shape
 
-## Design Tokens
+The model is instructed to return exactly this JSON — validated on every response:
 
-| Token         | Value                                   |
-| ------------- | --------------------------------------- |
-| Accent        | Indigo-500 `oklch(0.585 0.233 277.117)` |
-| Neutral       | Zinc scale                              |
-| Radius        | sm=8px · md=12px · lg=16px              |
-| Font          | Geist Sans + Geist Mono                 |
-| Default theme | Dark                                    |
+```json
+{
+  "summary": "string",
+  "insights": ["string"],
+  "charts": [
+    {
+      "type": "bar | line | pie",
+      "title": "string",
+      "x_key": "string",
+      "y_key": "string",
+      "data": [{ "<x_key>": "label", "<y_key>": 42 }],
+      "insight": "string"
+    }
+  ],
+  "recommendations": ["string"]
+}
+```
+
+Anything outside this shape throws a parse error surfaced in the UI — no silent failures.
+
+---
+
+## Versions
+
+| Version | What shipped |
+| ------- | ------------ |
+| v1.0.0  | Launch — upload, parse, AI analysis, charts, PDF export, OG image, demo mode |
+| v1.1.0  | Persistence — Neon DB, Clerk auth, save/load analyses, history sidebar, shareable links |
+| v1.2.0  | Streaming — live summary preview during generation via `streamText` |
+| v1.3.0  | Chat — streamed follow-up Q&A per analysis, persisted message thread |
+| v1.4.0  | Custom focus input + chart images embedded in PDF export |
