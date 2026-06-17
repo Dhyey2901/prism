@@ -4,7 +4,13 @@ import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export function AnalysisSkeleton({ fileName }: { fileName: string }) {
+export function AnalysisSkeleton({
+  fileName,
+  partialSummary,
+}: {
+  fileName: string;
+  partialSummary?: string;
+}) {
   return (
     <div className="flex flex-col gap-6">
       {/* Status line */}
@@ -16,15 +22,30 @@ export function AnalysisSkeleton({ fileName }: { fileName: string }) {
           <Sparkles className="size-4 text-primary shrink-0" />
         </motion.div>
         <p className="text-xs font-mono text-muted-foreground">
-          Analyzing {fileName}…
+          {partialSummary ? "Generating insights…" : `Analyzing ${fileName}…`}
         </p>
       </div>
 
-      {/* Summary card */}
-      <div className="rounded-lg border border-border bg-card px-5 py-4 space-y-2.5">
-        <Skeleton className="h-3 w-20" />
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-4/5" />
+      {/* Summary card — live text or skeleton */}
+      <div className="rounded-lg border border-primary/20 bg-primary/5 px-5 py-4">
+        <p className="text-xs font-semibold text-primary mb-2 uppercase tracking-wider">
+          Summary
+        </p>
+        {partialSummary ? (
+          <p className="text-sm text-foreground leading-relaxed">
+            {partialSummary}
+            <motion.span
+              animate={{ opacity: [1, 0] }}
+              transition={{ duration: 0.7, repeat: Infinity, ease: "easeInOut" }}
+              className="inline-block w-0.5 h-3.5 bg-foreground/70 ml-0.5 align-middle"
+            />
+          </p>
+        ) : (
+          <div className="space-y-2.5">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-4/5" />
+          </div>
+        )}
       </div>
 
       {/* Insights + Recommendations */}

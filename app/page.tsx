@@ -23,12 +23,22 @@ import { HistoryPanel } from "@/components/history/history-panel";
 import { SignInButton, UserButton, useUser } from "@clerk/nextjs";
 import { parseFile } from "@/lib/parser";
 import type { AnalysisResult, DatasetSummary, SavedAnalysis } from "@/types";
+import { validateAnalysisResult } from "@/lib/validate";
+
+function extractPartialSummary(text: string): string {
+  const complete = text.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  if (complete) return complete[1].replace(/\\n/g, "\n").replace(/\\"/g, '"');
+  const partial = text.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)/);
+  if (partial) return partial[1].replace(/\\n/g, "\n").replace(/\\"/g, '"');
+  return "";
+}
 
 type PageState =
   | { status: "idle" }
   | { status: "parsing" }
   | { status: "ready"; dataset: DatasetSummary; analyzeError?: string }
   | { status: "analyzing"; dataset: DatasetSummary }
+  | { status: "streaming"; dataset: DatasetSummary; partialSummary: string }
   | { status: "done"; dataset: DatasetSummary; result: AnalysisResult; savedId?: string }
   | { status: "error"; message: string };
 
@@ -64,9 +74,34 @@ export default function Home() {
         const body = (await res.json()) as { error?: string };
         throw new Error(body.error ?? `Server error ${res.status}`);
       }
-      const result = (await res.json()) as AnalysisResult;
+      if (!res.body) throw new Error("No response body");
+
+      setState({ status: "streaming", dataset, partialSummary: "" });
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        accumulated += decoder.decode(value, { stream: true });
+        setState({
+          status: "streaming",
+          dataset,
+          partialSummary: extractPartialSummary(accumulated),
+        });
+      }
+
+      // Stream complete — strip any markdown fences Gemini may add, parse and validate
+      const json = accumulated
+        .replace(/^```(?:json)?\s*/m, "")
+        .replace(/\s*```\s*$/m, "")
+        .trim();
+      const parsed: unknown = JSON.parse(json);
+      const result = validateAnalysisResult(parsed);
       setState({ status: "done", dataset, result });
-      // Auto-save for signed-in users — capture the ID for the share button
+
       if (isSignedIn) {
         fetch("/api/analyses", {
           method: "POST",
@@ -84,14 +119,13 @@ export default function Home() {
           .catch(() => {});
       }
     } catch (e) {
-      // Keep the parsed dataset — surface the error inline in the preview
       setState({
         status: "ready",
         dataset,
         analyzeError: e instanceof Error ? e.message : "Analysis failed.",
       });
     }
-  }, [state]);
+  }, [state, isSignedIn]);
 
   const backToPreview = useCallback(() => {
     if (state.status === "done") {
@@ -314,6 +348,22 @@ export default function Home() {
             className="flex-1 flex flex-col px-4 sm:px-6 py-8 w-full max-w-4xl mx-auto"
           >
             <AnalysisSkeleton fileName={state.dataset.fileName} />
+          </motion.div>
+        )}
+
+        {state.status === "streaming" && (
+          <motion.div
+            key="streaming"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.35, ease: "easeOut" }}
+            className="flex-1 flex flex-col px-4 sm:px-6 py-8 w-full max-w-4xl mx-auto"
+          >
+            <AnalysisSkeleton
+              fileName={state.dataset.fileName}
+              partialSummary={state.partialSummary}
+            />
           </motion.div>
         )}
 
