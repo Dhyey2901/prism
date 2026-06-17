@@ -47,4 +47,20 @@ await sql`
   ON analyses (created_at DESC)
 `;
 
-console.log("Migration complete — analyses table ready.");
+await sql`
+  CREATE TABLE IF NOT EXISTS messages (
+    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    analysis_id UUID        NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
+    user_id     TEXT        NOT NULL,
+    role        TEXT        NOT NULL CHECK (role IN ('user', 'assistant')),
+    content     TEXT        NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )
+`;
+
+await sql`
+  CREATE INDEX IF NOT EXISTS messages_analysis_id_idx
+  ON messages (analysis_id, created_at ASC)
+`;
+
+console.log("Migration complete — analyses + messages tables ready.");

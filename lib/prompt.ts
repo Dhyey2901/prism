@@ -1,4 +1,4 @@
-import type { DatasetSummary } from "@/types";
+import type { AnalysisResult, DatasetSummary } from "@/types";
 
 export function buildAnalysisPrompt(dataset: DatasetSummary): string {
   const colRows = dataset.columns
@@ -65,5 +65,33 @@ Rules:
 - insights: exactly 3-5 strings, each citing a specific number or pattern visible in the sample data
 - charts: exactly 1-3 items; "type" must be "bar", "line", or "pie"; x_key and y_key must be exact column names from the Column metadata table; data array must use real values from the sample rows
 - recommendations: exactly 3-5 strings, each a concrete action
-- Return ONLY the raw JSON object starting with { and ending with }`;
+- Return ONLY the raw JSON object starting with { and ending with }`;}
+
+export function buildChatSystemPrompt(
+  fileName: string,
+  result: AnalysisResult
+): string {
+  const charts = result.charts
+    .map((c) => `  - "${c.title}": ${c.insight}`)
+    .join("\n");
+
+  return `You are a concise data analyst assistant. The user has uploaded a file called "${fileName}" and received the following AI-generated analysis.
+
+ANALYSIS CONTEXT:
+Summary: ${result.summary}
+
+Key Insights:
+${result.insights.map((ins, i) => `${i + 1}. ${ins}`).join("\n")}
+
+Charts:
+${charts}
+
+Recommendations:
+${result.recommendations.map((r, i) => `${i + 1}. ${r}`).join("\n")}
+
+RULES:
+- Answer in 2–4 sentences unless more detail is clearly needed
+- Reference specific numbers or patterns from the insights when relevant
+- If asked about something outside this dataset, say so briefly and redirect
+- Never invent data not present in the analysis above`;
 }

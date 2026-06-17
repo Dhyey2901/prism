@@ -18,6 +18,7 @@ import { AnalysisView } from "@/components/insights/analysis-view";
 import { AnalysisSkeleton } from "@/components/insights/analysis-skeleton";
 import { ExportButton } from "@/components/export/export-button";
 import { ShareButton } from "@/components/history/share-button";
+import { ChatPanel } from "@/components/chat/chat-panel";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { HistoryPanel } from "@/components/history/history-panel";
 import { SignInButton, UserButton, useUser } from "@clerk/nextjs";
@@ -377,6 +378,9 @@ export default function Home() {
             className="flex-1 flex flex-col px-4 sm:px-6 py-8 w-full max-w-4xl mx-auto gap-6"
           >
             <AnalysisView result={state.result} dataset={state.dataset} />
+            {state.savedId && isSignedIn && (
+              <ChatPanel analysisId={state.savedId} />
+            )}
             <div className="flex justify-end gap-2 pb-4">
               {state.savedId && <ShareButton id={state.savedId} />}
               <ExportButton result={state.result} dataset={state.dataset} />

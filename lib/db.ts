@@ -1,5 +1,5 @@
 import { neon } from "@neondatabase/serverless";
-import type { AnalysisResult, SavedAnalysis } from "@/types";
+import type { AnalysisResult, ChatMessage, SavedAnalysis } from "@/types";
 
 const sql = neon(process.env.DATABASE_URL!);
 
@@ -64,4 +64,39 @@ export async function deleteAnalysis(id: string, userId: string): Promise<void> 
     DELETE FROM analyses
     WHERE id = ${id} AND user_id = ${userId}
   `;
+}
+
+// ─── Messages ─────────────────────────────────────────────────────────────────
+
+function toChatMessage(row: DbRow): ChatMessage {
+  return {
+    id: row.id as string,
+    role: row.role as "user" | "assistant",
+    content: row.content as string,
+    createdAt: new Date(row.created_at as string),
+  };
+}
+
+export async function getMessages(analysisId: string): Promise<ChatMessage[]> {
+  const rows = await sql`
+    SELECT id, role, content, created_at
+    FROM messages
+    WHERE analysis_id = ${analysisId}
+    ORDER BY created_at ASC
+  `;
+  return rows.map(toChatMessage);
+}
+
+export async function createMessage(
+  analysisId: string,
+  userId: string,
+  role: "user" | "assistant",
+  content: string
+): Promise<ChatMessage> {
+  const rows = await sql`
+    INSERT INTO messages (analysis_id, user_id, role, content)
+    VALUES (${analysisId}, ${userId}, ${role}, ${content})
+    RETURNING id, role, content, created_at
+  `;
+  return toChatMessage(rows[0]);
 }
