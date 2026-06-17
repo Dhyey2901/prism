@@ -208,9 +208,11 @@ Anything outside this shape throws a parse error surfaced in the UI — no silen
 ## Versions
 
 | Version | What shipped |
-| ------- | ------------ |
-| v1.0.0  | Launch — upload, parse, AI analysis, charts, PDF export, OG image, demo mode |
-| v1.1.0  | Persistence — Neon DB, Clerk auth, save/load analyses, history sidebar, shareable links |
-| v1.2.0  | Streaming — live summary preview during generation via `streamText` |
-| v1.3.0  | Chat — streamed follow-up Q&A per analysis, persisted message thread |
-| v1.4.0  | Custom focus input + chart images embedded in PDF export |
+| --- | --- |
+| v1.0.0 | Launch — upload, parse, AI analysis, charts, PDF export, OG image, demo mode |
+| v1.1.0 | Persistence — Neon DB, Clerk auth, save/load analyses, history sidebar, shareable links |
+| v1.2.0 | Streaming — live summary preview during generation via `streamText` |
+| v1.3.0 | Chat — streamed follow-up Q&A per analysis, persisted message thread |
+| v1.4.0 | Custom focus input + chart images embedded in PDF export |
+| v1.5.0 | Semantic search — pgvector + Gemini `text-embedding-004`, HNSW index, cosine similarity |
+| v1.6.0 | Timeline view in history sidebar — analyses grouped by month with insight preview |
