@@ -12,7 +12,12 @@ const CHART_TYPE_LABEL: Record<string, string> = {
   bar: "Bar chart",
   line: "Line chart",
   pie: "Pie chart",
+  area: "Area chart",
+  scatter: "Scatter plot",
 };
+
+// A4 content width = 595pt page - 2×40pt padding
+const PDF_CONTENT_WIDTH = 515;
 
 const s = StyleSheet.create({
   page: {
@@ -130,11 +135,13 @@ const s = StyleSheet.create({
   footerText: { fontSize: 8, color: "#a1a1aa" },
 });
 
+type ChartCapture = { src: string; aspectRatio: number };
+
 interface ReportDocumentProps {
   result: AnalysisResult;
   dataset: DatasetSummary;
   generatedAt: string;
-  chartImages?: string[];
+  chartImages?: ChartCapture[];
 }
 
 export function ReportDocument({
@@ -195,9 +202,20 @@ export function ReportDocument({
                 {CHART_TYPE_LABEL[chart.type] ?? chart.type} · {chart.x_key}{" "}
                 vs {chart.y_key} · {chart.data.length} data points
               </Text>
-              {chartImages?.[i] ? (
-                <Image src={chartImages[i]} style={s.chartImage} />
-              ) : null}
+              {(() => {
+                const cap = chartImages?.[i];
+                if (!cap?.src) return null;
+                const imgHeight = Math.min(
+                  PDF_CONTENT_WIDTH * cap.aspectRatio,
+                  220
+                );
+                return (
+                  <Image
+                    src={cap.src}
+                    style={{ ...s.chartImage, height: imgHeight }}
+                  />
+                );
+              })()}
               <Text style={s.chartInsight}>{chart.insight}</Text>
             </View>
           ))}

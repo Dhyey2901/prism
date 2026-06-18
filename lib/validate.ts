@@ -117,7 +117,13 @@ function isStringArray(v: unknown): v is string[] {
 }
 
 function isChartType(v: unknown): v is ChartType {
-  return v === "bar" || v === "line" || v === "pie";
+  return (
+    v === "bar" ||
+    v === "line" ||
+    v === "pie" ||
+    v === "area" ||
+    v === "scatter"
+  );
 }
 
 function validateChart(v: unknown, i: number): ChartConfig {
@@ -128,7 +134,7 @@ function validateChart(v: unknown, i: number): ChartConfig {
 
   if (!isChartType(c.type)) {
     throw new Error(
-      `charts[${i}].type must be "bar", "line", or "pie" — got "${String(c.type)}"`
+      `charts[${i}].type must be "bar", "line", "pie", "area", or "scatter" — got "${String(c.type)}"`
     );
   }
   if (!isString(c.title)) throw new Error(`charts[${i}].title must be a string`);

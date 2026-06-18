@@ -21,7 +21,7 @@ export interface DatasetSummary {
 
 // ─── AI Analysis ──────────────────────────────────────────────────────────────
 
-export type ChartType = "bar" | "line" | "pie";
+export type ChartType = "bar" | "line" | "pie" | "area" | "scatter";
 
 export interface ChartConfig {
   type: ChartType;

@@ -29,6 +29,8 @@ const CHART_TYPE_LABEL: Record<string, string> = {
   bar: "Bar chart",
   line: "Line chart",
   pie: "Pie chart",
+  area: "Area chart",
+  scatter: "Scatter plot",
 };
 
 export function AnalysisView({ result, dataset }: AnalysisViewProps) {

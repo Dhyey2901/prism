@@ -10,20 +10,30 @@ interface ExportButtonProps {
   dataset: DatasetSummary;
 }
 
-async function captureChartImages(): Promise<string[]> {
+type ChartCapture = { src: string; aspectRatio: number };
+
+async function captureChartImages(): Promise<ChartCapture[]> {
   const containers = Array.from(
     document.querySelectorAll<HTMLElement>("[data-chart-index]")
   );
   return Promise.all(
     containers.map(async (container) => {
       const svg = container.querySelector("svg");
-      if (!svg) return "";
+      if (!svg) return { src: "", aspectRatio: 0.4 };
       const bbox = svg.getBoundingClientRect();
       const w = Math.round(bbox.width);
       const h = Math.round(bbox.height);
-      if (!w || !h) return "";
+      if (!w || !h) return { src: "", aspectRatio: 0.4 };
 
       const clone = svg.cloneNode(true) as SVGSVGElement;
+
+      // Strip tooltip cursor and active dots — they appear as artifacts in exports
+      clone
+        .querySelectorAll(
+          ".recharts-tooltip-cursor, .recharts-active-dot, .recharts-tooltip-wrapper"
+        )
+        .forEach((el) => el.remove());
+
       clone.setAttribute("width", String(w));
       clone.setAttribute("height", String(h));
       clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
@@ -36,8 +46,9 @@ async function captureChartImages(): Promise<string[]> {
       const svgStr = new XMLSerializer().serializeToString(clone);
       const svgBlob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
       const svgUrl = URL.createObjectURL(svgBlob);
+      const aspectRatio = h / w;
 
-      return new Promise<string>((resolve) => {
+      return new Promise<ChartCapture>((resolve) => {
         const img = new Image(w, h);
         img.onload = () => {
           const scale = 2;
@@ -50,11 +61,11 @@ async function captureChartImages(): Promise<string[]> {
           ctx.fillRect(0, 0, w, h);
           ctx.drawImage(img, 0, 0, w, h);
           URL.revokeObjectURL(svgUrl);
-          resolve(canvas.toDataURL("image/png"));
+          resolve({ src: canvas.toDataURL("image/png"), aspectRatio });
         };
         img.onerror = () => {
           URL.revokeObjectURL(svgUrl);
-          resolve("");
+          resolve({ src: "", aspectRatio: 0.4 });
         };
         img.src = svgUrl;
       });

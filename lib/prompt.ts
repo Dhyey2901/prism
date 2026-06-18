@@ -47,7 +47,7 @@ Return exactly this JSON shape — no extra keys, no omitted keys:
   ],
   "charts": [
     {
-      "type": "bar",
+      "type": "bar|line|area|pie|scatter",
       "title": "descriptive chart title",
       "x_key": "exact column name for the x-axis (must match a column name above)",
       "y_key": "exact column name for the y-axis (must match a column name above)",
@@ -63,7 +63,7 @@ Return exactly this JSON shape — no extra keys, no omitted keys:
 
 ${focusText ? `Priority focus: "${focusText}". Weight your summary, insights, charts, and recommendations toward this area.\n` : ""}Rules:
 - insights: exactly 3-5 strings, each citing a specific number or pattern visible in the sample data
-- charts: exactly 1-3 items; "type" must be "bar", "line", or "pie"; x_key and y_key must be exact column names from the Column metadata table; data array must use real values from the sample rows
+- charts: exactly 2-4 items; choose the best type for the data — "bar" for comparisons, "line" for time series, "area" for cumulative/volume trends, "pie" for part-of-whole distributions (max 8 slices), "scatter" for correlation between two numeric columns; x_key and y_key must be exact column names from the Column metadata table; data array must use real values from the sample rows; vary chart types — do not use the same type for all charts
 - recommendations: exactly 3-5 strings, each a concrete action
 - Return ONLY the raw JSON object starting with { and ending with }`;}
 
