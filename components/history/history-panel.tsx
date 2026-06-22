@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Clock, FileText, ChevronRight, Search, List, GitCommitVertical } from "lucide-react";
+import { X, Clock, FileText, ChevronRight, Search, List, GitCommitVertical, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { SavedAnalysis } from "@/types";
@@ -62,6 +62,14 @@ export function HistoryPanel({ open, onClose, onLoad }: HistoryPanelProps) {
         .finally(() => setSearching(false));
     }, 350);
   }, [query]);
+
+  async function handleDelete(e: React.MouseEvent, id: string) {
+    e.stopPropagation();
+    // Optimistic removal
+    setAnalyses((prev) => prev.filter((a) => a.id !== id));
+    setSearchResults((prev) => prev?.filter((a) => a.id !== id) ?? null);
+    await fetch(`/api/analyses/${id}`, { method: "DELETE" }).catch(() => {});
+  }
 
   const groups = groupByMonth(analyses);
 
@@ -177,28 +185,36 @@ export function HistoryPanel({ open, onClose, onLoad }: HistoryPanelProps) {
                           </p>
                         )}
                         {list.map((a) => (
-                          <button
-                            key={a.id}
-                            onClick={() => { onLoad(a); onClose(); }}
-                            className="w-full text-left rounded-md px-3 py-3 hover:bg-accent/50 transition-colors group"
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium truncate">{a.filename}</p>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                  {a.rowCount.toLocaleString()} rows &middot; {a.columnCount} cols
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {new Date(a.createdAt).toLocaleDateString("en-AU", {
-                                    day: "numeric",
-                                    month: "short",
-                                    year: "numeric",
-                                  })}
-                                </p>
+                          <div key={a.id} className="group flex items-center gap-1 rounded-md hover:bg-accent/50 transition-colors">
+                            <button
+                              onClick={() => { onLoad(a); onClose(); }}
+                              className="flex-1 min-w-0 text-left px-3 py-3"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium truncate">{a.filename}</p>
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    {a.rowCount.toLocaleString()} rows &middot; {a.columnCount} cols
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {new Date(a.createdAt).toLocaleDateString("en-AU", {
+                                      day: "numeric",
+                                      month: "short",
+                                      year: "numeric",
+                                    })}
+                                  </p>
+                                </div>
+                                <ChevronRight className="size-4 text-muted-foreground shrink-0 mt-0.5 group-hover:text-foreground transition-colors" />
                               </div>
-                              <ChevronRight className="size-4 text-muted-foreground shrink-0 mt-0.5 group-hover:text-foreground transition-colors" />
-                            </div>
-                          </button>
+                            </button>
+                            <button
+                              onClick={(e) => handleDelete(e, a.id)}
+                              className="shrink-0 p-2 mr-1 rounded opacity-0 group-hover:opacity-100 hover:text-destructive transition-all"
+                              aria-label="Delete analysis"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          </div>
                         ))}
                       </div>
                     );
@@ -225,29 +241,37 @@ export function HistoryPanel({ open, onClose, onLoad }: HistoryPanelProps) {
 
                             <div className="space-y-4">
                               {group.items.map((a) => (
-                                <button
-                                  key={a.id}
-                                  onClick={() => { onLoad(a); onClose(); }}
-                                  className="w-full text-left pl-6 group"
-                                >
-                                  {/* dot */}
-                                  <div className="absolute left-0 mt-1 size-3.5 rounded-full border-2 border-primary bg-background group-hover:bg-primary/20 transition-colors" />
+                                <div key={a.id} className="group flex items-start gap-1">
+                                  <button
+                                    onClick={() => { onLoad(a); onClose(); }}
+                                    className="flex-1 min-w-0 text-left pl-6"
+                                  >
+                                    {/* dot */}
+                                    <div className="absolute left-0 mt-1 size-3.5 rounded-full border-2 border-primary bg-background group-hover:bg-primary/20 transition-colors" />
 
-                                  <p className="text-[10px] font-mono text-muted-foreground/60 mb-0.5">
-                                    {new Date(a.createdAt).toLocaleDateString("en-AU", {
-                                      day: "numeric",
-                                      month: "short",
-                                    })}
-                                  </p>
-                                  <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
-                                    {a.filename}
-                                  </p>
-                                  {a.result.insights[0] && (
-                                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2 leading-snug">
-                                      {a.result.insights[0]}
+                                    <p className="text-[10px] font-mono text-muted-foreground/60 mb-0.5">
+                                      {new Date(a.createdAt).toLocaleDateString("en-AU", {
+                                        day: "numeric",
+                                        month: "short",
+                                      })}
                                     </p>
-                                  )}
-                                </button>
+                                    <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
+                                      {a.filename}
+                                    </p>
+                                    {a.result.insights[0] && (
+                                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2 leading-snug">
+                                        {a.result.insights[0]}
+                                      </p>
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={(e) => handleDelete(e, a.id)}
+                                    className="shrink-0 p-1.5 mt-0.5 rounded opacity-0 group-hover:opacity-100 hover:text-destructive transition-all"
+                                    aria-label="Delete analysis"
+                                  >
+                                    <Trash2 className="size-3.5" />
+                                  </button>
+                                </div>
                               ))}
                             </div>
                           </div>
