@@ -10,7 +10,7 @@ import { rateLimit, getClientKey } from "@/lib/rate-limit";
 const MAX_BODY_BYTES = 256 * 1024;
 
 export async function POST(req: NextRequest) {
-  const limit = rateLimit(getClientKey(req));
+  const limit = await rateLimit(getClientKey(req));
   if (!limit.allowed) {
     return NextResponse.json(
       { error: "Too many requests — try again in a few minutes." },
