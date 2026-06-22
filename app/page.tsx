@@ -167,6 +167,7 @@ export default function Home() {
         sampleRows: [],
       },
       result: analysis.result,
+      savedId: analysis.id,
     });
   }, []);
 
