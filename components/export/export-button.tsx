@@ -27,12 +27,20 @@ async function captureChartImages(): Promise<ChartCapture[]> {
 
       const clone = svg.cloneNode(true) as SVGSVGElement;
 
-      // Strip tooltip cursor and active dots — they appear as artifacts in exports
+      // Strip tooltip cursor, active dots, and foreignObject elements.
+      // Recharts Legend renders its icons as HTML inside <foreignObject> — this
+      // doesn't paint on canvas and produces a tiled artifact in the PDF.
+      // Pie slice animations use stroke-dasharray/dashoffset; reset them so
+      // paths aren't captured in a mid-animation state.
       clone
         .querySelectorAll(
-          ".recharts-tooltip-cursor, .recharts-active-dot, .recharts-tooltip-wrapper"
+          ".recharts-tooltip-cursor, .recharts-active-dot, .recharts-tooltip-wrapper, foreignObject"
         )
         .forEach((el) => el.remove());
+      clone.querySelectorAll("path").forEach((p) => {
+        (p as SVGPathElement).style.strokeDasharray = "";
+        (p as SVGPathElement).style.strokeDashoffset = "";
+      });
 
       clone.setAttribute("width", String(w));
       clone.setAttribute("height", String(h));
