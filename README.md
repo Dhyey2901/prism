@@ -12,7 +12,7 @@ Upload a CSV or Excel file. Prism parses it entirely in your browser, sends only
 
 - Executive summary (streamed live as it generates)
 - Key insights with specific numbers from your data
-- Interactive charts (bar, line, pie) rendered from a validated JSON config
+- Interactive charts (bar, line, area, pie, scatter) rendered from a validated JSON config
 - Actionable recommendations
 - Downloadable PDF report with chart images embedded
 - Follow-up chat — ask questions about your data after the analysis
@@ -104,6 +104,7 @@ app/
     analyze/route.ts      Rate-limited, validated AI analysis endpoint (streamText)
     analyses/
       route.ts            Save + list analyses (auth required)
+      search/route.ts     Semantic search via pgvector cosine similarity
       [id]/
         route.ts          Get / delete a saved analysis
         chat/route.ts     Streamed follow-up chat per analysis
@@ -123,9 +124,11 @@ lib/
   prompt.ts               AI prompt builder (analysis + chat system prompt)
   validate.ts             Request + response shape validation
   db.ts                   Neon Postgres queries (analyses + messages)
-  rate-limit.ts           Sliding-window rate limiter (in-memory, per IP)
+  rate-limit.ts           Distributed rate limiter via Upstash Redis (in-memory fallback for local dev)
+  embeddings.ts           Gemini text-embedding-004 wrapper + embeddingTextFromAnalysis helper
 
 types/index.ts            All shared TypeScript types
+__tests__/                Vitest unit tests — 58 tests across 5 files
 public/
   sample.csv              Demo dataset — 12-month revenue / customers / churn
   logo.png                Prism logo
@@ -162,9 +165,11 @@ Open [http://localhost:3000](http://localhost:3000).
 | `DATABASE_URL` | Yes | Neon Postgres connection string |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Yes | Clerk publishable key |
 | `CLERK_SECRET_KEY` | Yes | Clerk secret key |
+| `UPSTASH_REDIS_REST_URL` | No | Upstash Redis REST URL — enables distributed rate limiting |
+| `UPSTASH_REDIS_REST_TOKEN` | No | Upstash Redis REST token |
 | `NEXT_PUBLIC_SITE_URL` | No | Production URL — used for OG image absolute URLs |
 
-Auth and database are required for history, sharing, and chat. The core upload → analyze → export flow works without them.
+Auth and database are required for history, sharing, and chat. Upstash is required for distributed rate limiting (falls back to in-memory without it). The core upload → analyze → export flow works without any of them.
 
 ---
 
@@ -172,7 +177,7 @@ Auth and database are required for history, sharing, and chat. The core upload �
 
 - Client-side parsing — files never touch a server
 - Server-side request validation with hard caps (20 sample rows, 256KB body)
-- Rate limiting: 10 analyses per 10 minutes per IP
+- Distributed rate limiting: 10 analyses per 10 minutes per IP via Upstash Redis — enforced across all serverless instances
 - Auth-gated routes: history, chat, and share endpoints require a valid Clerk session
 - Generic error responses — provider errors logged server-side only
 - 0 `npm audit` vulnerabilities (xlsx replaced with exceljs due to unpatched CVEs)
@@ -189,7 +194,7 @@ The model is instructed to return exactly this JSON — validated on every respo
   "insights": ["string"],
   "charts": [
     {
-      "type": "bar | line | pie",
+      "type": "bar | line | area | pie | scatter",
       "title": "string",
       "x_key": "string",
       "y_key": "string",
@@ -216,3 +221,7 @@ Anything outside this shape throws a parse error surfaced in the UI — no silen
 | v1.4.0 | Custom focus input + chart images embedded in PDF export |
 | v1.5.0 | Semantic search — pgvector + Gemini `text-embedding-004`, HNSW index, cosine similarity |
 | v1.6.0 | Timeline view in history sidebar — analyses grouped by month with insight preview |
+| v1.7.0 | Area + scatter chart types, PDF aspect ratio fix, cursor artifact removal from exports |
+| v1.7.1 | Fix pie chart PDF rendering (foreignObject stripping), delete analyses from history |
+| v1.8.0 | Chat + share available for history-loaded analyses (savedId forwarded on load) |
+| v1.9.0 | Distributed rate limiter via Upstash Redis — survives cold starts and multi-instance |
