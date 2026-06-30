@@ -14,8 +14,9 @@ Upload a CSV or Excel file. Prism parses it entirely in your browser, sends only
 - Key insights with specific numbers from your data
 - Interactive charts (bar, line, area, pie, scatter) rendered from a validated JSON config
 - Actionable recommendations
-- Downloadable PDF report with chart images embedded
+- Downloadable PDF report with embedded chart captures (SVG → canvas → PNG)
 - Follow-up chat — ask questions about your data after the analysis
+- Semantic search over saved analyses — finds results by meaning, not just keywords
 
 No raw data ever leaves your machine. The AI never sees your full spreadsheet.
 
@@ -42,15 +43,15 @@ Go to [prismanalytics.app](https://prismanalytics.app) and click **Try with samp
 ## Architecture
 
 ```text
-Browser                          Server                        AI
-──────                           ──────                        ──
+Browser                          Server                        External
+──────                           ──────                        ────────
 File drop
   → Papaparse / exceljs parse
   → Column types + null counts
   → Up to 20 sample rows
   → Summary stats object
                         POST /api/analyze
-                          → Rate limit check (10 req / 10 min / IP)
+                          → Rate limit (Upstash Redis, 10/10min/IP)
                           → Body size cap (256KB)
                           → Schema validation
                           → Prompt construction
@@ -62,6 +63,18 @@ File drop
   → Full JSON parse + validate on stream end
   → Recharts renders chart config
   → SVG → canvas → PNG → PDF embed
+
+  [Signed in]
+                        POST /api/analyses (save)
+                                              → Neon Postgres (JSONB)
+                                              → text-embedding-004
+                                              → pgvector (HNSW index)
+
+  History search query
+                        GET /api/analyses/search
+                                              → embed query
+                                              → cosine similarity (pgvector)
+                                              ← ranked results
 ```
 
 **Key design decisions:**
@@ -71,24 +84,27 @@ File drop
 - **Streaming first.** `streamText` + `ReadableStream` on the client means the summary starts appearing within 200ms of the request. Partial JSON regex extracts the summary mid-stream so the user can read while the AI is still generating.
 - **Chart images in PDF without extra dependencies.** SVG serialization + canvas at 2× scale — no `html2canvas`. Each chart container has a `data-chart-index` attribute; export queries them, clones the SVG, injects a background rect, draws to canvas, and passes PNG data URLs to `@react-pdf/renderer`.
 - **Fails loudly, recovers gracefully.** Malformed AI responses throw typed parse errors surfaced in the UI. A failed analysis returns you to your data with one-click retry. Each chart has its own React error boundary.
+- **Semantic search over history.** Each saved analysis is embedded with `text-embedding-004` (768-dim vector stored in pgvector). Search queries are embedded at request time and ranked by cosine similarity — finds "customer retention" even if the analysis was titled `march_export.csv`.
 
 ---
 
 ## Stack
 
-| Layer      | Technology                         |
-| ---------- | ---------------------------------- |
-| Framework  | Next.js 16 (App Router)            |
-| Styling    | Tailwind CSS v4 + Shadcn/ui        |
-| Typography | Geist Sans + Geist Mono            |
-| Animation  | Framer Motion                      |
-| Charts     | Recharts                           |
-| AI         | Gemini 2.5 Flash via Vercel AI SDK |
-| Parsing    | Papaparse + exceljs (client-side)  |
-| Export     | @react-pdf/renderer                |
-| Auth       | Clerk                              |
-| Database   | Neon Postgres                      |
-| Hosting    | Vercel                             |
+| Layer         | Technology                                              |
+| ------------- | ------------------------------------------------------- |
+| Framework     | Next.js 16 (App Router)                                 |
+| Styling       | Tailwind CSS v4 + Shadcn/ui                             |
+| Typography    | Geist Sans + Geist Mono                                 |
+| Animation     | Framer Motion                                           |
+| Charts        | Recharts                                                |
+| AI            | Gemini 2.5 Flash + text-embedding-004 (Vercel AI SDK)   |
+| Parsing       | Papaparse + exceljs (client-side)                       |
+| Export        | @react-pdf/renderer                                     |
+| Auth          | Clerk                                                   |
+| Database      | Neon Postgres + pgvector                                |
+| Rate limiting | Upstash Redis (distributed sliding window)              |
+| Testing       | Vitest — 58 tests across 5 files                        |
+| Hosting       | Vercel                                                  |
 
 ---
 
