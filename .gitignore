@@ -43,3 +43,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# clerk configuration (can include secrets)
+/.clerk/
+
+# eval run output (regenerated each run — the README summary is what we commit)
+/scripts/eval/results.json

@@ -102,4 +102,27 @@ describe("buildAnalysisPrompt", () => {
     const prompt = buildAnalysisPrompt({ ...dataset, keyMetrics: [] });
     expect(prompt).not.toContain("Computed facts");
   });
+
+  it("instructs the model to interpret facts rather than restate them", () => {
+    const prompt = buildAnalysisPrompt(dataset);
+    expect(prompt).toContain("Interpret the computed facts");
+  });
+
+  it("calls out down periods so chart captions can't skip the dip", () => {
+    const withDip: DatasetSummary = {
+      ...dataset,
+      keyMetrics: [
+        ...dataset.keyMetrics,
+        { label: "Down periods in revenue", value: 1, formatted: "1 of 1 period-over-period moves declined: Feb 2024" },
+      ],
+    };
+    const prompt = buildAnalysisPrompt(withDip);
+    expect(prompt).toContain("revenue");
+    expect(prompt).toContain("must have an insight that names at least one of its declines");
+  });
+
+  it("does not mention down periods when none exist", () => {
+    const prompt = buildAnalysisPrompt(dataset);
+    expect(prompt).not.toContain("must have an insight that names at least one of its declines");
+  });
 });

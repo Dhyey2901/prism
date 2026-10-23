@@ -160,4 +160,59 @@ describe("buildSummary key metrics", () => {
     );
     expect(keyMetrics).toHaveLength(0);
   });
+
+  it("computes start-to-end percentage change", () => {
+    const { keyMetrics } = buildSummary(
+      [{ month: "Jan", revenue: 100 }, { month: "Dec", revenue: 172 }],
+      "f.csv",
+      100
+    );
+    const change = keyMetrics.find((m) => m.label === "Change in revenue (start to end)");
+    expect(change?.value).toBeCloseTo(72, 5);
+    expect(change?.formatted).toContain("+72.0%");
+  });
+
+  it("includes a percentage alongside the largest increase and decrease", () => {
+    const { keyMetrics } = buildSummary(rows, "f.csv", 100);
+    const byLabel = Object.fromEntries(keyMetrics.map((m) => [m.label, m]));
+    expect(byLabel["Largest increase in revenue"].formatted).toMatch(/%\)/);
+    expect(byLabel["Largest decrease in revenue"].formatted).toMatch(/%\)/);
+  });
+
+  it("surfaces every tied period when the largest increase repeats", () => {
+    const tiedRows = [
+      { month: "Jan", revenue: 100 },
+      { month: "Feb", revenue: 110 },
+      { month: "Mar", revenue: 90 },
+      { month: "Apr", revenue: 100 },
+    ];
+    const { keyMetrics } = buildSummary(tiedRows, "f.csv", 100);
+    const increase = keyMetrics.find((m) => m.label === "Largest increase in revenue");
+    expect(increase?.formatted).toContain("Jan → Feb");
+    expect(increase?.formatted).toContain("Mar → Apr");
+  });
+
+  it("lists every declining period, not just the single largest drop", () => {
+    const dippyRows = [
+      { month: "Jan", revenue: 100 },
+      { month: "Feb", revenue: 90 },
+      { month: "Mar", revenue: 120 },
+      { month: "Apr", revenue: 80 },
+    ];
+    const { keyMetrics } = buildSummary(dippyRows, "f.csv", 100);
+    const down = keyMetrics.find((m) => m.label === "Down periods in revenue");
+    expect(down?.value).toBe(2);
+    expect(down?.formatted).toContain("Feb");
+    expect(down?.formatted).toContain("Apr");
+  });
+
+  it("computes a ratio against a count-like denominator column", () => {
+    const orderRows = [
+      { month: "Jan", revenue: 1000, orders: 10 },
+      { month: "Feb", revenue: 2200, orders: 20 },
+    ];
+    const { keyMetrics } = buildSummary(orderRows, "f.csv", 100);
+    const perOrder = keyMetrics.find((m) => m.label === "revenue per orders");
+    expect(perOrder?.value).toBeCloseTo(106.67, 1);
+  });
 });

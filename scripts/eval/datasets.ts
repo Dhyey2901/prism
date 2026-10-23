@@ -1,0 +1,173 @@
+// Fixture datasets for the claim-accuracy eval (scripts/eval/run.ts).
+//
+// Each dataset is small enough to check by hand. `expected` is the ground
+// truth — hardcoded, not computed at eval time — so the eval can't pass by
+// circularly asking lib/stats.ts to grade its own homework. The numbers
+// were produced once via lib/stats.ts and checked against the raw rows
+// (see the comment on each dataset); if you change the arithmetic in
+// lib/stats.ts, re-verify these by hand before trusting a score change.
+
+export interface EvalDataset {
+  name: string;
+  labelColumn: string;
+  valueColumn: string;
+  rows: Record<string, string | number>[];
+  expected: {
+    bestLabel: string;
+    worstLabel: string;
+    downLabels: string[]; // periods where value decreased vs. the previous row
+    startEndPctChange: number; // rounded to 1 decimal, same rounding as formatPct
+  };
+}
+
+export const evalDatasets: EvalDataset[] = [
+  {
+    name: "Steady uptrend with one big jump",
+    labelColumn: "month",
+    valueColumn: "revenue",
+    rows: [
+      { month: "Jan", revenue: 100 },
+      { month: "Feb", revenue: 108 },
+      { month: "Mar", revenue: 120 },
+      { month: "Apr", revenue: 145 },
+      { month: "May", revenue: 160 },
+    ],
+    expected: { bestLabel: "May", worstLabel: "Jan", downLabels: [], startEndPctChange: 60.0 },
+  },
+  {
+    name: "Steady downtrend with a tied largest drop",
+    labelColumn: "month",
+    valueColumn: "subscribers",
+    rows: [
+      { month: "Jan", subscribers: 500 },
+      { month: "Feb", subscribers: 470 },
+      { month: "Mar", subscribers: 430 },
+      { month: "Apr", subscribers: 420 },
+      { month: "May", subscribers: 380 },
+    ],
+    expected: { bestLabel: "Jan", worstLabel: "May", downLabels: ["Feb", "Mar", "Apr", "May"], startEndPctChange: -24.0 },
+  },
+  {
+    name: "Single dip in the middle of growth",
+    labelColumn: "day",
+    valueColumn: "temperature",
+    rows: [
+      { day: "Mon", temperature: 70 },
+      { day: "Tue", temperature: 72 },
+      { day: "Wed", temperature: 65 },
+      { day: "Thu", temperature: 74 },
+      { day: "Fri", temperature: 76 },
+    ],
+    expected: { bestLabel: "Fri", worstLabel: "Wed", downLabels: ["Wed"], startEndPctChange: 8.6 },
+  },
+  {
+    name: "Early dip then recovery",
+    labelColumn: "quarter",
+    valueColumn: "signups",
+    rows: [
+      { quarter: "Q1", signups: 200 },
+      { quarter: "Q2", signups: 150 },
+      { quarter: "Q3", signups: 210 },
+      { quarter: "Q4", signups: 260 },
+    ],
+    expected: { bestLabel: "Q4", worstLabel: "Q2", downLabels: ["Q2"], startEndPctChange: 30.0 },
+  },
+  {
+    name: "Late dip after sustained growth",
+    labelColumn: "week",
+    valueColumn: "active_users",
+    rows: [
+      { week: "W1", active_users: 1000 },
+      { week: "W2", active_users: 1100 },
+      { week: "W3", active_users: 1250 },
+      { week: "W4", active_users: 1050 },
+    ],
+    expected: { bestLabel: "W3", worstLabel: "W1", downLabels: ["W4"], startEndPctChange: 5.0 },
+  },
+  {
+    name: "Two non-adjacent dips",
+    labelColumn: "month",
+    valueColumn: "orders",
+    rows: [
+      { month: "Jan", orders: 300 },
+      { month: "Feb", orders: 280 },
+      { month: "Mar", orders: 340 },
+      { month: "Apr", orders: 310 },
+      { month: "May", orders: 360 },
+    ],
+    expected: { bestLabel: "May", worstLabel: "Feb", downLabels: ["Feb", "Apr"], startEndPctChange: 20.0 },
+  },
+  {
+    name: "Overall decline with one up-tick",
+    labelColumn: "month",
+    valueColumn: "churn_rate",
+    rows: [
+      { month: "Jan", churn_rate: 5.0 },
+      { month: "Feb", churn_rate: 4.2 },
+      { month: "Mar", churn_rate: 4.6 },
+      { month: "Apr", churn_rate: 3.1 },
+    ],
+    expected: { bestLabel: "Jan", worstLabel: "Apr", downLabels: ["Feb", "Apr"], startEndPctChange: -38.0 },
+  },
+  {
+    name: "Tied largest increase, twice",
+    labelColumn: "month",
+    valueColumn: "revenue",
+    rows: [
+      { month: "Jan", revenue: 100 },
+      { month: "Feb", revenue: 115 },
+      { month: "Mar", revenue: 95 },
+      { month: "Apr", revenue: 110 },
+    ],
+    expected: { bestLabel: "Feb", worstLabel: "Mar", downLabels: ["Mar"], startEndPctChange: 10.0 },
+  },
+  {
+    name: "Small dataset, big outlier at the end",
+    labelColumn: "period",
+    valueColumn: "sales",
+    rows: [
+      { period: "P1", sales: 40 },
+      { period: "P2", sales: 42 },
+      { period: "P3", sales: 44 },
+      { period: "P4", sales: 200 },
+    ],
+    expected: { bestLabel: "P4", worstLabel: "P1", downLabels: [], startEndPctChange: 400.0 },
+  },
+  {
+    name: "Big outlier at the start, then flat decline",
+    labelColumn: "period",
+    valueColumn: "incidents",
+    rows: [
+      { period: "P1", incidents: 90 },
+      { period: "P2", incidents: 20 },
+      { period: "P3", incidents: 18 },
+      { period: "P4", incidents: 15 },
+    ],
+    expected: { bestLabel: "P1", worstLabel: "P4", downLabels: ["P2", "P3", "P4"], startEndPctChange: -83.3 },
+  },
+  {
+    name: "Negative values with an increase that's still negative",
+    labelColumn: "month",
+    valueColumn: "net_change",
+    rows: [
+      { month: "Jan", net_change: -50 },
+      { month: "Feb", net_change: -30 },
+      { month: "Mar", net_change: -60 },
+      { month: "Apr", net_change: -10 },
+    ],
+    expected: { bestLabel: "Apr", worstLabel: "Mar", downLabels: ["Mar"], startEndPctChange: 80.0 },
+  },
+  {
+    name: "Long flat stretch broken by one move",
+    labelColumn: "month",
+    valueColumn: "price",
+    rows: [
+      { month: "Jan", price: 20 },
+      { month: "Feb", price: 20 },
+      { month: "Mar", price: 20 },
+      { month: "Apr", price: 25 },
+      { month: "May", price: 25 },
+    ],
+    expected: { bestLabel: "Apr", worstLabel: "Jan", downLabels: [], startEndPctChange: 25.0 },
+  },
+];

@@ -26,7 +26,7 @@ No raw data ever leaves your machine. The AI never sees your full spreadsheet.
 
 ### Option 1 — Try the demo
 
-Go to [prismanalytics.app](https://prismanalytics.app) and click **Try with sample data**. No file needed — it runs the full pipeline on a built-in 12-month revenue dataset.
+Go to [prismanalytics.app](https://prismanalytics.app) and click **Try with sample data**. No file needed — it loads a pre-generated report for a built-in 12-month revenue dataset, so it works even if the AI provider is down.
 
 ### Option 2 — Upload your own file
 
@@ -85,6 +85,17 @@ File drop
 - **Chart images in PDF without extra dependencies.** SVG serialization + canvas at 2× scale — no `html2canvas`. Each chart container has a `data-chart-index` attribute; export queries them, clones the SVG, injects a background rect, draws to canvas, and passes PNG data URLs to `@react-pdf/renderer`.
 - **Fails loudly, recovers gracefully.** Malformed AI responses throw typed parse errors surfaced in the UI. A failed analysis returns you to your data with one-click retry. Each chart has its own React error boundary.
 - **Semantic search over history.** Each saved analysis is embedded with `text-embedding-004` (768-dim vector stored in pgvector). Search queries are embedded at request time and ranked by cosine similarity — finds "customer retention" even if the analysis was titled `march_export.csv`.
+- **The AI doesn't do arithmetic.** Totals, extremes, and period-over-period changes are computed in the browser from the *full* dataset (not the 20-row sample) and sent to the model as facts it's instructed to defer to, not recompute. They're also rendered as a deterministic "Computed facts" strip in the UI, so any AI claim can be checked against a number nothing hallucinated.
+
+---
+
+## Quality
+
+Claim accuracy is measured, not assumed: `npm run eval:accuracy` runs real AI analysis against 12 small, hand-checked datasets (steady trends, mid-series dips, tied deltas, negative values, outliers) and scores how many of the AI's narrative claims — best/worst period, start→end % change, declines — match ground truth that was frozen before the eval ever ran. See [scripts/eval](./scripts/eval).
+
+<!-- EVAL:ACCURACY -->
+**Claim accuracy:** not yet run — see `npm run eval:accuracy`.
+<!-- /EVAL:ACCURACY -->
 
 ---
 

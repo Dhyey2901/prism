@@ -53,6 +53,23 @@ function formatNumber(n: number): string {
     : n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 }
 
+function formatPct(n: number): string {
+  return `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`;
+}
+
+// Column names that plausibly represent a count to divide by (for "revenue
+// per order"-style ratios). First match wins — order is priority order.
+const DENOMINATOR_NAME_PATTERNS = [
+  /orders?/i,
+  /units?/i,
+  /transactions?/i,
+  /sessions?/i,
+  /visits?/i,
+  /customers?/i,
+  /users?/i,
+  /\bcount\b|\bqty\b|quantity/i,
+];
+
 // Deterministic facts the model is instructed to use verbatim, computed
 // from the FULL dataset (not the capped sample) before any rows are
 // dropped — this is what keeps "biggest month" claims from being guessed.
@@ -81,12 +98,16 @@ function computeKeyMetrics(
     .filter((kc) => kc.col.type === "number")
     .slice(0, 6); // bound prompt size — more than 6 numeric columns is unusual
 
+  // Series per column, kept around for the cross-column ratio pass below.
+  const seriesByName = new Map<string, { v: number; i: number }[]>();
+
   for (const { key, name } of numericCols) {
     const present = rows
       .map((r, i) => ({ v: toNumber(r[key]), i }))
       .filter((x): x is { v: number; i: number } => x.v !== null);
 
     if (present.length === 0) continue;
+    seriesByName.set(name, present);
 
     const total = present.reduce((sum, { v }) => sum + v, 0);
     const average = total / present.length;
@@ -108,30 +129,110 @@ function computeKeyMetrics(
       }
     );
 
-    if (present.length > 1) {
-      let maxIncrease: { delta: number; i: number } | null = null;
-      let maxDecrease: { delta: number; i: number } | null = null;
-      for (let k = 1; k < present.length; k++) {
-        const prev = present[k - 1];
-        const curr = present[k];
-        if (curr.i !== prev.i + 1) continue; // only consecutive rows — no gaps
-        const delta = curr.v - prev.v;
-        if (maxIncrease === null || delta > maxIncrease.delta) maxIncrease = { delta, i: curr.i };
-        if (maxDecrease === null || delta < maxDecrease.delta) maxDecrease = { delta, i: curr.i };
-      }
-      if (maxIncrease && maxIncrease.delta > 0) {
-        metrics.push({
-          label: `Largest increase in ${name}`,
-          value: maxIncrease.delta,
-          formatted: `+${formatNumber(maxIncrease.delta)} (${labelFor(maxIncrease.i - 1)} → ${labelFor(maxIncrease.i)})`,
-        });
-      }
-      if (maxDecrease && maxDecrease.delta < 0) {
-        metrics.push({
-          label: `Largest decrease in ${name}`,
-          value: maxDecrease.delta,
-          formatted: `${formatNumber(maxDecrease.delta)} (${labelFor(maxDecrease.i - 1)} → ${labelFor(maxDecrease.i)})`,
-        });
+    if (present.length < 2) continue;
+
+    // Start → end change, as both a percentage and the absolute values.
+    const first = present[0];
+    const last = present[present.length - 1];
+    if (first.v !== 0) {
+      const pctChange = ((last.v - first.v) / Math.abs(first.v)) * 100;
+      metrics.push({
+        label: `Change in ${name} (start to end)`,
+        value: pctChange,
+        formatted: `${formatPct(pctChange)} (${formatNumber(first.v)} → ${formatNumber(last.v)})`,
+      });
+    }
+
+    // Period-over-period deltas — largest increase/decrease (with ties
+    // surfaced, not just the first match), plus every declining period so
+    // chart captions have no excuse to skip over a dip.
+    const deltas: { delta: number; pct: number; i: number }[] = [];
+    for (let k = 1; k < present.length; k++) {
+      const prev = present[k - 1];
+      const curr = present[k];
+      if (curr.i !== prev.i + 1) continue; // only consecutive rows — no gaps
+      const delta = curr.v - prev.v;
+      const pct = prev.v !== 0 ? (delta / Math.abs(prev.v)) * 100 : NaN;
+      deltas.push({ delta, pct, i: curr.i });
+    }
+    if (deltas.length === 0) continue;
+
+    // Round off float dust so near-equal deltas register as true ties.
+    const rounded = deltas.map((d) => ({ ...d, rd: Math.round(d.delta * 1e6) / 1e6 }));
+    const maxDelta = Math.max(...rounded.map((d) => d.rd));
+    const minDelta = Math.min(...rounded.map((d) => d.rd));
+
+    const transitionsFor = (ds: typeof rounded) =>
+      ds.map((d) => `${labelFor(d.i - 1)} → ${labelFor(d.i)}`).join("; ");
+
+    if (maxDelta > 0) {
+      const ties = rounded.filter((d) => d.rd === maxDelta);
+      const pctStr = Number.isFinite(ties[0].pct) ? ` (${formatPct(ties[0].pct)})` : "";
+      metrics.push({
+        label: `Largest increase in ${name}`,
+        value: maxDelta,
+        formatted: `+${formatNumber(maxDelta)}${pctStr} (${transitionsFor(ties)})`,
+      });
+    }
+    if (minDelta < 0) {
+      const ties = rounded.filter((d) => d.rd === minDelta);
+      const pctStr = Number.isFinite(ties[0].pct) ? ` (${formatPct(ties[0].pct)})` : "";
+      metrics.push({
+        label: `Largest decrease in ${name}`,
+        value: minDelta,
+        formatted: `${formatNumber(minDelta)}${pctStr} (${transitionsFor(ties)})`,
+      });
+    }
+
+    const downPeriods = deltas.filter((d) => d.delta < 0);
+    if (downPeriods.length > 0) {
+      metrics.push({
+        label: `Down periods in ${name}`,
+        value: downPeriods.length,
+        formatted: `${downPeriods.length} of ${deltas.length} period-over-period moves declined: ${downPeriods
+          .map((d) => labelFor(d.i))
+          .join(", ")}`,
+      });
+    }
+  }
+
+  // Ratio metrics — "X per Y" against the most plausible count-like column
+  // (revenue per order, returns per order, etc.), bounded to a handful.
+  let denominatorName: string | null = null;
+  for (const pattern of DENOMINATOR_NAME_PATTERNS) {
+    const match = numericCols.find((c) => pattern.test(c.name));
+    if (match) {
+      denominatorName = match.name;
+      break;
+    }
+  }
+  if (denominatorName) {
+    const denomSeries = seriesByName.get(denominatorName);
+    if (denomSeries) {
+      const denomByIndex = new Map(denomSeries.map((p) => [p.i, p.v]));
+      let ratiosAdded = 0;
+      for (const { name } of numericCols) {
+        if (name === denominatorName || ratiosAdded >= 4) continue;
+        const series = seriesByName.get(name);
+        if (!series) continue;
+
+        let sumNumerator = 0;
+        let sumDenominator = 0;
+        for (const { v, i } of series) {
+          const denom = denomByIndex.get(i);
+          if (denom !== undefined && denom !== 0) {
+            sumNumerator += v;
+            sumDenominator += denom;
+          }
+        }
+        if (sumDenominator > 0) {
+          metrics.push({
+            label: `${name} per ${denominatorName}`,
+            value: sumNumerator / sumDenominator,
+            formatted: formatNumber(sumNumerator / sumDenominator),
+          });
+          ratiosAdded++;
+        }
       }
     }
   }
