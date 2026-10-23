@@ -26,6 +26,7 @@ import { SignInButton, UserButton, useUser } from "@clerk/nextjs";
 import { parseFile } from "@/lib/parser";
 import type { AnalysisResult, DatasetSummary, SavedAnalysis } from "@/types";
 import { validateAnalysisResult } from "@/lib/validate";
+import { demoReport } from "@/lib/demo-report";
 
 function extractPartialSummary(text: string): string {
   const complete = text.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/);
@@ -74,8 +75,18 @@ export default function Home() {
         body: JSON.stringify({ ...dataset, focusText: focusText.trim() || undefined }),
       });
       if (!res.ok) {
-        const body = (await res.json()) as { error?: string };
-        throw new Error(body.error ?? `Server error ${res.status}`);
+        const text = await res.text();
+        let message = `Server error ${res.status}`;
+        try {
+          const body = JSON.parse(text) as { error?: string };
+          if (body.error) message = body.error;
+        } catch {
+          // Server sent something other than JSON (e.g. an HTML error page
+          // from a platform-level failure) — fall back to a friendly message.
+          message =
+            "The analysis service is temporarily unavailable. Please try again shortly.";
+        }
+        throw new Error(message);
       }
       if (!res.body) throw new Error("No response body");
 
@@ -101,7 +112,14 @@ export default function Home() {
         .replace(/^```(?:json)?\s*/m, "")
         .replace(/\s*```\s*$/m, "")
         .trim();
-      const parsed: unknown = JSON.parse(json);
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(json);
+      } catch {
+        throw new Error(
+          "The AI returned an incomplete response. Please try again."
+        );
+      }
       const result = validateAnalysisResult(parsed);
       setState({ status: "done", dataset, result });
 
@@ -137,6 +155,8 @@ export default function Home() {
   }, [state]);
 
   const loadDemo = useCallback(async () => {
+    // Uses a pre-generated report instead of calling the AI, so the demo
+    // always works — even if the provider is down or out of quota.
     setState({ status: "parsing" });
     try {
       const res = await fetch("/sample.csv");
@@ -144,7 +164,7 @@ export default function Home() {
       const blob = await res.blob();
       const file = new File([blob], "sample.csv", { type: "text/csv" });
       const dataset = await parseFile(file);
-      setState({ status: "ready", dataset });
+      setState({ status: "done", dataset, result: demoReport });
     } catch (e) {
       setState({
         status: "error",
@@ -268,6 +288,9 @@ export default function Home() {
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Upload a spreadsheet to get started
+                </p>
+                <p className="text-sm text-muted-foreground/80">
+                  Get an AI-written report with charts and a PDF in seconds.
                 </p>
               </div>
 

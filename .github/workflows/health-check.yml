@@ -1,0 +1,72 @@
+name: Daily health check
+
+on:
+  schedule:
+    # 07:00 UTC daily
+    - cron: "0 7 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run sample analysis against production
+        id: health
+        run: node scripts/health-check.mjs
+        env:
+          HEALTH_CHECK_URL: ${{ vars.HEALTH_CHECK_URL }}
+
+      # On failure, file a GitHub issue assigned to the repo owner. GitHub
+      # emails the assignee by default — zero extra secrets required.
+      #
+      # To get a direct email instead (e.g. via Gmail SMTP), add the
+      # dawidd6/action-send-mail step below and set MAIL_USERNAME /
+      # MAIL_PASSWORD (a Gmail App Password: https://myaccount.google.com/apppasswords)
+      # as repo secrets.
+      - name: Open an issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = "🔴 Daily health check failed — /api/analyze is down";
+            const { data: existing } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "health-check",
+            });
+            if (existing.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing[0].number,
+                body: `Still failing as of ${new Date().toISOString()}. See the [failed run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                labels: ["health-check"],
+                assignees: [context.repo.owner],
+                body: `The daily sample-analysis health check failed.\n\nSee the [failed run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for logs.\n\nThis issue is assigned to you so GitHub emails you — close it once resolved; a new failure will reopen a fresh one.`,
+              });
+            }
+
+      # - name: Email on failure
+      #   if: failure()
+      #   uses: dawidd6/action-send-mail@v4
+      #   with:
+      #     server_address: smtp.gmail.com
+      #     server_port: 465
+      #     username: ${{ secrets.MAIL_USERNAME }}
+      #     password: ${{ secrets.MAIL_PASSWORD }}
+      #     subject: "Prism health check failed"
+      #     to: dhyeyvyas2003@gmail.com
+      #     from: Prism Health Check
+      #     body: "The daily sample-analysis health check failed. See: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
