@@ -57,6 +57,24 @@ function formatPct(n: number): string {
   return `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`;
 }
 
+function capitalize(s: string): string {
+  return s.length === 0 ? s : s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+// Naive English de-pluralization for metric labels ("orders" → "order").
+// Good enough for "revenue per order" / "return rate"; not meant to be a
+// real inflector — a wrong label here is cosmetic, not a correctness bug.
+function desingularize(name: string): string {
+  return /[^s]s$/i.test(name) ? name.slice(0, -1) : name;
+}
+
+// A ratio at or below 1 reads naturally as a rate (returns/orders, a
+// fraction); above 1 it reads as a per-unit amount (revenue/order, a
+// dollar figure) — format accordingly.
+function formatRatio(v: number): string {
+  return v <= 1 ? `${(v * 100).toFixed(1)}%` : formatNumber(v);
+}
+
 // Column names that plausibly represent a count to divide by (for "revenue
 // per order"-style ratios). First match wins — order is priority order.
 const DENOMINATOR_NAME_PATTERNS = [
@@ -69,6 +87,45 @@ const DENOMINATOR_NAME_PATTERNS = [
   /users?/i,
   /\bcount\b|\bqty\b|quantity/i,
 ];
+
+// Whether every period in the dataset falls within one calendar year —
+// used to stop the model from calling a Jan→Dec comparison "year-over-year".
+function computeTimeSpanFact(
+  rows: Record<string, unknown>[],
+  labelCol: { key: string; name: string } | undefined
+): KeyMetric | null {
+  if (!labelCol) return null;
+
+  const dates = rows
+    .map((r) => {
+      const v = r[labelCol.key];
+      if (v === null || v === undefined || String(v).trim() === "") return null;
+      const d = new Date(String(v).trim());
+      return isNaN(d.getTime()) ? null : d;
+    })
+    .filter((d): d is Date => d !== null);
+
+  // Require most rows to parse as dates — otherwise this isn't a date column
+  // and we'd be reading noise (e.g. a numeric ID column) as a calendar.
+  if (dates.length < rows.length * 0.8 || dates.length < 2) return null;
+
+  // Use local-time getters — these Dates came from parsing strings like
+  // "Jan 2024" with no timezone, which JS interprets as local midnight.
+  // Reading them back in UTC can roll the year on either side of UTC.
+  const years = new Set(dates.map((d) => d.getFullYear()));
+  const sorted = [...dates].sort((a, b) => a.getTime() - b.getTime());
+  const startYear = sorted[0].getFullYear();
+  const endYear = sorted[sorted.length - 1].getFullYear();
+
+  return {
+    label: "Time span",
+    value: years.size,
+    formatted:
+      years.size > 1
+        ? `spans ${years.size} calendar years (${startYear}–${endYear})`
+        : `entirely within ${startYear} — a single calendar year`,
+  };
+}
 
 // Deterministic facts the model is instructed to use verbatim, computed
 // from the FULL dataset (not the capped sample) before any rows are
@@ -92,6 +149,9 @@ function computeKeyMetrics(
       ? `Row ${i + 1}`
       : String(v).trim();
   };
+
+  const timeSpanFact = computeTimeSpanFact(rows, labelCol);
+  if (timeSpanFact) metrics.push(timeSpanFact);
 
   const numericCols = keyedColumns
     .map((kc, i) => ({ ...kc, col: columns[i] }))
@@ -165,9 +225,13 @@ function computeKeyMetrics(
     const transitionsFor = (ds: typeof rounded) =>
       ds.map((d) => `${labelFor(d.i - 1)} → ${labelFor(d.i)}`).join("; ");
 
+    let maxAbsPct = NaN;
+    let minAbsPct = NaN;
+
     if (maxDelta > 0) {
       const ties = rounded.filter((d) => d.rd === maxDelta);
-      const pctStr = Number.isFinite(ties[0].pct) ? ` (${formatPct(ties[0].pct)})` : "";
+      maxAbsPct = ties[0].pct;
+      const pctStr = Number.isFinite(maxAbsPct) ? ` (${formatPct(maxAbsPct)})` : "";
       metrics.push({
         label: `Largest increase in ${name}`,
         value: maxDelta,
@@ -176,12 +240,39 @@ function computeKeyMetrics(
     }
     if (minDelta < 0) {
       const ties = rounded.filter((d) => d.rd === minDelta);
-      const pctStr = Number.isFinite(ties[0].pct) ? ` (${formatPct(ties[0].pct)})` : "";
+      minAbsPct = ties[0].pct;
+      const pctStr = Number.isFinite(minAbsPct) ? ` (${formatPct(minAbsPct)})` : "";
       metrics.push({
         label: `Largest decrease in ${name}`,
         value: minDelta,
         formatted: `${formatNumber(minDelta)}${pctStr} (${transitionsFor(ties)})`,
       });
+    }
+
+    // The biggest absolute move and the biggest relative move aren't always
+    // the same period (a small base can make a modest move look huge in
+    // percentage terms) — surface the % leader separately when it differs.
+    const withPct = rounded.filter((d) => Number.isFinite(d.pct));
+    if (withPct.length > 0) {
+      const maxPct = Math.max(...withPct.map((d) => d.pct));
+      const minPct = Math.min(...withPct.map((d) => d.pct));
+
+      if (maxPct > 0 && Math.round(maxPct * 1e6) !== Math.round(maxAbsPct * 1e6)) {
+        const ties = withPct.filter((d) => Math.round(d.pct * 1e6) === Math.round(maxPct * 1e6));
+        metrics.push({
+          label: `Largest % increase in ${name}`,
+          value: maxPct,
+          formatted: `${formatPct(maxPct)} (${transitionsFor(ties)})`,
+        });
+      }
+      if (minPct < 0 && Math.round(minPct * 1e6) !== Math.round(minAbsPct * 1e6)) {
+        const ties = withPct.filter((d) => Math.round(d.pct * 1e6) === Math.round(minPct * 1e6));
+        metrics.push({
+          label: `Largest % decrease in ${name}`,
+          value: minPct,
+          formatted: `${formatPct(minPct)} (${transitionsFor(ties)})`,
+        });
+      }
     }
 
     const downPeriods = deltas.filter((d) => d.delta < 0);
@@ -196,8 +287,11 @@ function computeKeyMetrics(
     }
   }
 
-  // Ratio metrics — "X per Y" against the most plausible count-like column
-  // (revenue per order, returns per order, etc.), bounded to a handful.
+  // Ratio metrics against the most plausible count-like column — a rate
+  // (returns/orders) when the ratio is small, a per-unit amount (revenue/
+  // order) otherwise. Includes start→end and the full-series high/low so a
+  // "stayed stable" claim about the rate can actually be checked against
+  // something, not just the two endpoints.
   let denominatorName: string | null = null;
   for (const pattern of DENOMINATOR_NAME_PATTERNS) {
     const match = numericCols.find((c) => pattern.test(c.name));
@@ -216,22 +310,51 @@ function computeKeyMetrics(
         const series = seriesByName.get(name);
         if (!series) continue;
 
+        const ratioSeries: { v: number; i: number }[] = [];
         let sumNumerator = 0;
         let sumDenominator = 0;
         for (const { v, i } of series) {
           const denom = denomByIndex.get(i);
-          if (denom !== undefined && denom !== 0) {
-            sumNumerator += v;
-            sumDenominator += denom;
-          }
+          if (denom === undefined || denom === 0) continue;
+          ratioSeries.push({ v: v / denom, i });
+          sumNumerator += v;
+          sumDenominator += denom;
         }
-        if (sumDenominator > 0) {
+        if (ratioSeries.length === 0 || sumDenominator === 0) continue;
+
+        const aggregateRatio = sumNumerator / sumDenominator;
+        const isRate = aggregateRatio <= 1;
+        const rawLabel = isRate
+          ? `${desingularize(name)} rate`
+          : `${name} per ${desingularize(denominatorName)}`;
+        const displayLabel = capitalize(rawLabel);
+
+        metrics.push({ label: displayLabel, value: aggregateRatio, formatted: formatRatio(aggregateRatio) });
+        ratiosAdded++;
+
+        if (ratioSeries.length > 1) {
+          const rFirst = ratioSeries[0];
+          const rLast = ratioSeries[ratioSeries.length - 1];
           metrics.push({
-            label: `${name} per ${denominatorName}`,
-            value: sumNumerator / sumDenominator,
-            formatted: formatNumber(sumNumerator / sumDenominator),
+            label: `${displayLabel} (start → end)`,
+            value: rLast.v - rFirst.v,
+            formatted: `${formatRatio(rFirst.v)} → ${formatRatio(rLast.v)}`,
           });
-          ratiosAdded++;
+
+          const rMax = ratioSeries.reduce((a, b) => (b.v > a.v ? b : a));
+          const rMin = ratioSeries.reduce((a, b) => (b.v < a.v ? b : a));
+          if (rMax.i !== rMin.i) {
+            metrics.push({
+              label: `Highest ${rawLabel}`,
+              value: rMax.v,
+              formatted: `${formatRatio(rMax.v)} (${labelFor(rMax.i)})`,
+            });
+            metrics.push({
+              label: `Lowest ${rawLabel}`,
+              value: rMin.v,
+              formatted: `${formatRatio(rMin.v)} (${labelFor(rMin.i)})`,
+            });
+          }
         }
       }
     }

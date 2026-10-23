@@ -16,6 +16,11 @@ export function buildAnalysisPrompt(dataset: DatasetSummary, focusText?: string)
     .filter((m) => m.label.startsWith("Down periods in "))
     .map((m) => m.label.replace("Down periods in ", ""));
 
+  const timeSpanFact = dataset.keyMetrics.find((m) => m.label === "Time span");
+  const singleYear = timeSpanFact?.formatted.includes("single calendar year") ?? false;
+
+  const hasRateFacts = dataset.keyMetrics.some((m) => /rate$/i.test(m.label));
+
   const colHeader = dataset.columns.map((c) => c.name).join(" | ");
   const dataRows = dataset.sampleRows
     .map(
@@ -77,7 +82,7 @@ Return exactly this JSON shape — no extra keys, no omitted keys:
 }
 
 ${focusText ? `Priority focus: "${focusText}". Weight your summary, insights, charts, and recommendations toward this area.\n` : ""}Rules:
-${factRows ? "- For any claim about a total, average, high, low, best/worst period, or period-over-period change, use the exact figures from \"Computed facts\" above — do not calculate your own from the sample rows, which are a subset and will produce wrong answers.\n- Interpret the computed facts — explain what they mean, why they might matter, or how they compare to each other — rather than just reading the list back as prose.\n" : ""}${downPeriodColumns.length > 0 ? `- These columns had periods that declined: ${downPeriodColumns.join(", ")} (see "Down periods in ..." above for which ones). Any chart using one of these columns as y_key must have an insight that names at least one of its declines — do not describe only the overall upward trend and skip over the dip.\n` : ""}- insights: exactly 3-5 strings, each citing a specific number or pattern visible in the sample data
+${factRows ? "- For any claim about a total, average, high, low, best/worst period, or period-over-period change, use the exact figures from \"Computed facts\" above — do not calculate your own from the sample rows, which are a subset and will produce wrong answers.\n- Interpret the computed facts — explain what they mean, why they might matter, or how they compare to each other — rather than just reading the list back as prose.\n- Only describe a metric as \"stable\", \"steady\", \"flat\", \"unchanged\", or \"consistent\" when a computed fact actually supports it (e.g. a start-to-end change under roughly 5%, or a rate's Highest and Lowest values sitting close together) — otherwise avoid that language.\n" : ""}${downPeriodColumns.length > 0 ? `- These columns had periods that declined: ${downPeriodColumns.join(", ")} (see "Down periods in ..." above for which ones). Any chart using one of these columns as y_key must have an insight that names at least one of its declines — do not describe only the overall upward trend and skip over the dip.\n` : ""}${singleYear ? "- Every period in this dataset falls within a single calendar year (see \"Time span\" above) — never call a change \"year-over-year\" or \"YoY\"; say \"month-over-month\" or \"period-over-period\" instead.\n" : ""}${hasRateFacts ? "- A rising raw count (e.g. returns, complaints, errors) is not automatically a problem — check the matching rate fact above (e.g. \"Return rate\"). If the rate held steady or fell while volume grew, describe the raw increase as a function of growth, not as a worsening trend.\n" : ""}- insights: exactly 3-5 strings, each citing a specific number or pattern visible in the sample data
 - charts: exactly 2-4 items; choose the best type for the data — "bar" for comparisons, "line" for time series, "area" for cumulative/volume trends, "pie" for part-of-whole distributions (max 8 slices), "scatter" for correlation between two numeric columns; x_key and y_key must be exact column names from the Column metadata table; data array must use real values from the sample rows; vary chart types — do not use the same type for all charts
 - recommendations: exactly 3-5 strings, each a concrete action
 - Return ONLY the raw JSON object starting with { and ending with }`;}

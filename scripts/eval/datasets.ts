@@ -17,6 +17,12 @@ export interface EvalDataset {
     worstLabel: string;
     downLabels: string[]; // periods where value decreased vs. the previous row
     startEndPctChange: number; // rounded to 1 decimal, same rounding as formatPct
+    // Phrases the narrative must NOT contain (case-insensitive substring) —
+    // e.g. wrong terminology or an unwarranted alarmist framing.
+    forbiddenPhrases?: string[];
+    // Phrases the narrative MUST contain — a grounding check that the AI
+    // actually looked at the relevant computed fact.
+    requiredPhrases?: string[];
   };
 }
 
@@ -169,5 +175,55 @@ export const evalDatasets: EvalDataset[] = [
       { month: "May", price: 25 },
     ],
     expected: { bestLabel: "Apr", worstLabel: "Jan", downLabels: [], startEndPctChange: 25.0 },
+  },
+  {
+    name: "Twelve months within a single year (no YoY language)",
+    labelColumn: "month",
+    valueColumn: "revenue",
+    rows: [
+      { month: "Jan 2024", revenue: 100 },
+      { month: "Feb 2024", revenue: 110 },
+      { month: "Mar 2024", revenue: 120 },
+      { month: "Apr 2024", revenue: 130 },
+      { month: "May 2024", revenue: 140 },
+      { month: "Jun 2024", revenue: 150 },
+      { month: "Jul 2024", revenue: 160 },
+      { month: "Aug 2024", revenue: 170 },
+      { month: "Sep 2024", revenue: 180 },
+      { month: "Oct 2024", revenue: 190 },
+      { month: "Nov 2024", revenue: 200 },
+      { month: "Dec 2024", revenue: 210 },
+    ],
+    expected: {
+      bestLabel: "Dec 2024",
+      worstLabel: "Jan 2024",
+      downLabels: [],
+      startEndPctChange: 110.0,
+      forbiddenPhrases: ["year-over-year", "year over year", "yoy", "year-on-year"],
+    },
+  },
+  {
+    name: "Rising return count with a flat-to-falling return rate",
+    labelColumn: "month",
+    valueColumn: "orders",
+    rows: [
+      { month: "Jan", orders: 1000, returns: 29 },
+      { month: "Feb", orders: 1200, returns: 32 },
+      { month: "Mar", orders: 1400, returns: 36 },
+      { month: "Apr", orders: 1600, returns: 40 },
+      { month: "May", orders: 1800, returns: 48 },
+      { month: "Jun", orders: 2000, returns: 56 },
+    ],
+    // Orders +100%, returns +93% — but the return rate actually went from
+    // 2.9% to 2.8%. A model doing arithmetic on the raw count alone would
+    // call the returns increase a problem; it isn't one.
+    expected: {
+      bestLabel: "Jun",
+      worstLabel: "Jan",
+      downLabels: [],
+      startEndPctChange: 100.0,
+      forbiddenPhrases: ["concerning", "alarming", "red flag", "warning sign", "needs attention", "a problem"],
+      requiredPhrases: ["2.9", "2.8"],
+    },
   },
 ];

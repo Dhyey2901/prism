@@ -125,4 +125,50 @@ describe("buildAnalysisPrompt", () => {
     const prompt = buildAnalysisPrompt(dataset);
     expect(prompt).not.toContain("must have an insight that names at least one of its declines");
   });
+
+  it("forbids year-over-year language for a single-calendar-year dataset", () => {
+    const withSpan: DatasetSummary = {
+      ...dataset,
+      keyMetrics: [
+        ...dataset.keyMetrics,
+        { label: "Time span", value: 1, formatted: "entirely within 2024 — a single calendar year" },
+      ],
+    };
+    const prompt = buildAnalysisPrompt(withSpan);
+    expect(prompt).toContain('never call a change "year-over-year" or "YoY"');
+  });
+
+  it("does not forbid year-over-year language when the dataset spans multiple years", () => {
+    const withSpan: DatasetSummary = {
+      ...dataset,
+      keyMetrics: [
+        ...dataset.keyMetrics,
+        { label: "Time span", value: 2, formatted: "spans 2 calendar years (2023–2024)" },
+      ],
+    };
+    const prompt = buildAnalysisPrompt(withSpan);
+    expect(prompt).not.toContain('never call a change "year-over-year" or "YoY"');
+  });
+
+  it("tells the model to weigh a rising count against its rate when rate facts exist", () => {
+    const withRate: DatasetSummary = {
+      ...dataset,
+      keyMetrics: [
+        ...dataset.keyMetrics,
+        { label: "Return rate", value: 0.028, formatted: "2.8%" },
+      ],
+    };
+    const prompt = buildAnalysisPrompt(withRate);
+    expect(prompt).toContain("is not automatically a problem");
+  });
+
+  it("does not mention rate-vs-count framing when there are no rate facts", () => {
+    const prompt = buildAnalysisPrompt(dataset);
+    expect(prompt).not.toContain("is not automatically a problem");
+  });
+
+  it("forbids stability language without a backing computed fact", () => {
+    const prompt = buildAnalysisPrompt(dataset);
+    expect(prompt).toContain('Only describe a metric as "stable"');
+  });
 });

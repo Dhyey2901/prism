@@ -127,7 +127,9 @@ export function validateDatasetSummary(v: unknown): DatasetSummary {
   if (!Array.isArray(keyMetricsInput)) {
     throw new Error('"keyMetrics" must be an array when present');
   }
-  const MAX_KEY_METRICS = 64;
+  // 6 numeric columns × up to ~10 metrics each, plus up to 4 ratio columns
+  // × 4 metrics, plus the time-span fact — generous headroom, still tiny.
+  const MAX_KEY_METRICS = 128;
   if (keyMetricsInput.length > MAX_KEY_METRICS) {
     throw new Error(`"keyMetrics" exceeds the maximum of ${MAX_KEY_METRICS}`);
   }

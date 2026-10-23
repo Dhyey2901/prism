@@ -76,6 +76,18 @@ async function runDataset(d: EvalDataset): Promise<DatasetResult> {
         passed: d.expected.downLabels.some((l) => wordMatch(fullText, l)),
       });
     }
+    for (const phrase of d.expected.forbiddenPhrases ?? []) {
+      claims.push({
+        claim: `does not say "${phrase}"`,
+        passed: !fullText.toLowerCase().includes(phrase.toLowerCase()),
+      });
+    }
+    for (const phrase of d.expected.requiredPhrases ?? []) {
+      claims.push({
+        claim: `mentions "${phrase}"`,
+        passed: fullText.toLowerCase().includes(phrase.toLowerCase()),
+      });
+    }
 
     return { name: d.name, claims };
   } catch (e) {

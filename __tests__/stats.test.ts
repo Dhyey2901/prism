@@ -212,7 +212,78 @@ describe("buildSummary key metrics", () => {
       { month: "Feb", revenue: 2200, orders: 20 },
     ];
     const { keyMetrics } = buildSummary(orderRows, "f.csv", 100);
-    const perOrder = keyMetrics.find((m) => m.label === "revenue per orders");
+    const perOrder = keyMetrics.find((m) => m.label === "Revenue per order");
     expect(perOrder?.value).toBeCloseTo(106.67, 1);
+  });
+
+  it("flags a dataset whose periods fall within a single calendar year", () => {
+    const yearRows = [
+      { month: "Jan 2024", revenue: 100 },
+      { month: "Dec 2024", revenue: 200 },
+    ];
+    const { keyMetrics } = buildSummary(yearRows, "f.csv", 100);
+    const span = keyMetrics.find((m) => m.label === "Time span");
+    expect(span?.formatted).toContain("single calendar year");
+  });
+
+  it("flags a dataset whose periods span multiple calendar years", () => {
+    const yearRows = [
+      { month: "Jan 2023", revenue: 100 },
+      { month: "Dec 2024", revenue: 200 },
+    ];
+    const { keyMetrics } = buildSummary(yearRows, "f.csv", 100);
+    const span = keyMetrics.find((m) => m.label === "Time span");
+    expect(span?.formatted).toContain("spans 2 calendar years");
+  });
+
+  it("does not add a time span fact when the label column isn't date-like", () => {
+    const { keyMetrics } = buildSummary(rows, "f.csv", 100); // labels are "Jan"/"Feb"/"Mar", no year
+    expect(keyMetrics.find((m) => m.label === "Time span")).toBeUndefined();
+  });
+
+  it("surfaces the largest % move separately when it differs from the largest absolute move", () => {
+    // P1→P2 is +8 off a base of 10 (+80%, the % leader). P2→P3 is +12 off a
+    // base of 18 (+66.7%, smaller % but the bigger absolute move).
+    const pctRows = [
+      { period: "P1", value: 10 },
+      { period: "P2", value: 18 },
+      { period: "P3", value: 30 },
+    ];
+    const { keyMetrics } = buildSummary(pctRows, "f.csv", 100);
+    const byLabel = Object.fromEntries(keyMetrics.map((m) => [m.label, m]));
+    expect(byLabel["Largest increase in value"].value).toBe(12);
+    expect(byLabel["Largest increase in value"].formatted).toContain("P2 → P3");
+    expect(byLabel["Largest % increase in value"].formatted).toContain("+80.0%");
+    expect(byLabel["Largest % increase in value"].formatted).toContain("P1 → P2");
+  });
+
+  it("omits the % leader fact when it's the same period as the absolute leader", () => {
+    const { keyMetrics } = buildSummary(rows, "f.csv", 100);
+    expect(keyMetrics.find((m) => m.label === "Largest % increase in revenue")).toBeUndefined();
+  });
+
+  it("formats a small ratio as a rate and shows its start-to-end trend and range", () => {
+    const returnRows = [
+      { month: "Jan", orders: 1000, returns: 29 },
+      { month: "Feb", orders: 1500, returns: 42 },
+      { month: "Mar", orders: 2000, returns: 56 },
+    ];
+    const { keyMetrics } = buildSummary(returnRows, "f.csv", 100);
+    const byLabel = Object.fromEntries(keyMetrics.map((m) => [m.label, m]));
+
+    expect(byLabel["Return rate"].formatted).toBe("2.8%");
+    expect(byLabel["Return rate (start → end)"].formatted).toBe("2.9% → 2.8%");
+    expect(byLabel["Highest return rate"].formatted).toContain("Jan");
+    expect(byLabel["Lowest return rate"].formatted).toContain("Feb");
+  });
+
+  it("formats a large ratio as a per-unit amount, not a percentage", () => {
+    const orderRows = [
+      { month: "Jan", orders: 10, revenue: 1000 },
+      { month: "Feb", orders: 20, revenue: 2200 },
+    ];
+    const { keyMetrics } = buildSummary(orderRows, "f.csv", 100);
+    const perOrder = keyMetrics.find((m) => m.label === "Revenue per order");
+    expect(perOrder?.formatted).not.toContain("%");
   });
 });
