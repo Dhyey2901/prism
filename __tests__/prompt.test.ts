@@ -199,4 +199,33 @@ describe("buildAnalysisPrompt", () => {
     const prompt = buildAnalysisPrompt(dataset);
     expect(prompt).toContain('"mid-year"');
   });
+
+  it("forbids inventing currency symbols, unconditionally", () => {
+    const prompt = buildAnalysisPrompt({ ...dataset, keyMetrics: [] });
+    expect(prompt).toContain("Never add a currency symbol ($)");
+  });
+
+  it("requires trend claims to use start/end, not highs/lows", () => {
+    const prompt = buildAnalysisPrompt(dataset);
+    expect(prompt).toContain("X and Y must be the start and end values");
+  });
+
+  it("omits the trend-claim rule when there are no key metrics", () => {
+    const prompt = buildAnalysisPrompt({ ...dataset, keyMetrics: [] });
+    expect(prompt).not.toContain("X and Y must be the start and end values");
+  });
+
+  it("requires cross-column peak/low attribution to match that column's own fact", () => {
+    const prompt = buildAnalysisPrompt(dataset);
+    expect(prompt).toContain("do not assume two different columns peaked or dipped in the same period");
+  });
+
+  it("extends the rate-vs-count rule to recommendations", () => {
+    const withRate: DatasetSummary = {
+      ...dataset,
+      keyMetrics: [...dataset.keyMetrics, { label: "Return rate", value: 0.028, formatted: "2.8%" }],
+    };
+    const prompt = buildAnalysisPrompt(withRate);
+    expect(prompt).toContain("including recommendations");
+  });
 });

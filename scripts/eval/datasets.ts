@@ -23,6 +23,10 @@ export interface EvalDataset {
     // Phrases the narrative MUST contain — a grounding check that the AI
     // actually looked at the relevant computed fact.
     requiredPhrases?: string[];
+    // Sentence-scoped check: fails if any sentence mentions `column`
+    // alongside peak/high language AND the wrong period label — catches
+    // crediting one column's extreme period to a different column.
+    peakMisattribution?: { column: string; wrongPeakLabel: string }[];
   };
 }
 
@@ -240,13 +244,29 @@ export const evalDatasets: EvalDataset[] = [
     ],
     // Return rate: Jan 2.9% ... Jun 2.8% — close at the endpoints, but it
     // ranged 1.6% (Feb) to 3.8% (Mar) in between. Calling that "stable"
-    // because start ≈ end, without checking the range, is the bug.
+    // because start ≈ end, without checking the range, is the bug. The
+    // same shape also tempts a *different* bug: narrating the trend as
+    // "improved from 3.8% to 1.6%" — splicing the high and low together
+    // as if they were the start and end, instead of the real 2.9%→2.8%.
     expected: {
       bestLabel: "Apr",
       worstLabel: "Mar",
       downLabels: ["Mar", "May"],
       startEndPctChange: 15.0,
-      forbiddenPhrases: ["stable", "steady", "consistent", "unchanged", "remained flat", "hasn't changed"],
+      forbiddenPhrases: [
+        "stable",
+        "steady",
+        "consistent",
+        "unchanged",
+        "remained flat",
+        "hasn't changed",
+        "from 3.8",
+        "from 1.6",
+        "3.8% to 1.6%",
+        "1.6% to 3.8%",
+        "3.8% to 2.8%",
+      ],
+      requiredPhrases: ["2.9", "2.8"],
     },
   },
   {
@@ -275,6 +295,30 @@ export const evalDatasets: EvalDataset[] = [
       downLabels: ["Feb", "Apr", "Jun", "Aug", "Oct"],
       startEndPctChange: 60.0,
       forbiddenPhrases: ["throughout", "every month", "all year", "entire period", "consistently"],
+    },
+  },
+  {
+    name: "Two columns that peak in different months",
+    labelColumn: "month",
+    valueColumn: "sales",
+    rows: [
+      { month: "Jan", sales: 100, returns: 10 },
+      { month: "Feb", sales: 120, returns: 12 },
+      { month: "Mar", sales: 140, returns: 14 },
+      { month: "Apr", sales: 200, returns: 15 },
+      { month: "May", sales: 180, returns: 20 },
+      { month: "Jun", sales: 150, returns: 18 },
+    ],
+    // Sales peak in April (200); returns peak the month after, in May
+    // (20) — close enough in time that it's tempting to describe them as
+    // the same event ("returns peaked alongside April's sales high").
+    // They didn't.
+    expected: {
+      bestLabel: "Apr",
+      worstLabel: "Jan",
+      downLabels: ["May", "Jun"],
+      startEndPctChange: 50.0,
+      peakMisattribution: [{ column: "returns", wrongPeakLabel: "Apr" }],
     },
   },
 ];
