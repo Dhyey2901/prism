@@ -5,6 +5,7 @@ import type {
   ColumnMeta,
   ColumnType,
   DatasetSummary,
+  KeyMetric,
 } from "@/types";
 
 // Server-side caps — a legitimate DatasetSummary is always small.
@@ -62,6 +63,25 @@ function validateColumn(v: unknown, i: number): ColumnMeta {
   };
 }
 
+function validateKeyMetric(v: unknown, i: number): KeyMetric {
+  if (typeof v !== "object" || v === null) {
+    throw new Error(`keyMetrics[${i}] must be an object`);
+  }
+  const m = v as Record<string, unknown>;
+
+  if (!isString(m.label) || m.label.length === 0) {
+    throw new Error(`keyMetrics[${i}].label must be a non-empty string`);
+  }
+  if (!isFiniteNumber(m.value)) {
+    throw new Error(`keyMetrics[${i}].value must be a number`);
+  }
+  if (!isString(m.formatted)) {
+    throw new Error(`keyMetrics[${i}].formatted must be a string`);
+  }
+
+  return { label: m.label, value: m.value, formatted: m.formatted };
+}
+
 export function validateDatasetSummary(v: unknown): DatasetSummary {
   if (typeof v !== "object" || v === null) {
     throw new Error("Request body must be a JSON object");
@@ -102,11 +122,22 @@ export function validateDatasetSummary(v: unknown): DatasetSummary {
     }
   }
 
+  // Optional — older clients predating KeyMetric support send none.
+  const keyMetricsInput = d.keyMetrics ?? [];
+  if (!Array.isArray(keyMetricsInput)) {
+    throw new Error('"keyMetrics" must be an array when present');
+  }
+  const MAX_KEY_METRICS = 64;
+  if (keyMetricsInput.length > MAX_KEY_METRICS) {
+    throw new Error(`"keyMetrics" exceeds the maximum of ${MAX_KEY_METRICS}`);
+  }
+
   return {
     rowCount: d.rowCount,
     columnCount: d.columnCount,
     columns: d.columns.map((c, i) => validateColumn(c, i)),
     sampleRows: d.sampleRows as Record<string, string | number | null>[],
+    keyMetrics: keyMetricsInput.map((m, i) => validateKeyMetric(m, i)),
     fileName: d.fileName,
     fileSizeBytes: d.fileSizeBytes,
   };

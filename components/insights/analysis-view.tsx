@@ -5,6 +5,7 @@ import { BarChart2, Lightbulb, TrendingUp } from "lucide-react";
 import type { AnalysisResult, DatasetSummary } from "@/types";
 import { ChartRenderer } from "@/components/charts/chart-renderer";
 import { ChartErrorBoundary } from "@/components/charts/chart-error-boundary";
+import { KeyMetrics } from "@/components/insights/key-metrics";
 
 const container = {
   hidden: {},
@@ -60,6 +61,13 @@ export function AnalysisView({ result, dataset }: AnalysisViewProps) {
         </p>
         <p className="text-sm text-foreground leading-relaxed">{result.summary}</p>
       </motion.div>
+
+      {/* Computed facts — deterministic, shown so AI claims can be checked */}
+      {dataset.keyMetrics.length > 0 && (
+        <motion.div variants={item}>
+          <KeyMetrics metrics={dataset.keyMetrics} />
+        </motion.div>
+      )}
 
       {/* Insights + Recommendations */}
       <motion.div

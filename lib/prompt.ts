@@ -8,6 +8,10 @@ export function buildAnalysisPrompt(dataset: DatasetSummary, focusText?: string)
     )
     .join("\n");
 
+  const factRows = dataset.keyMetrics
+    .map((m) => `- ${m.label}: ${m.formatted}`)
+    .join("\n");
+
   const colHeader = dataset.columns.map((c) => c.name).join(" | ");
   const dataRows = dataset.sampleRows
     .map(
@@ -36,7 +40,14 @@ ${colRows}
 Sample rows (first ${dataset.sampleRows.length}):
 | ${colHeader} |
 ${dataRows}
-
+${
+  factRows
+    ? `
+Computed facts (ground truth — calculated in code from the full dataset, not the sample above):
+${factRows}
+`
+    : ""
+}
 Return exactly this JSON shape — no extra keys, no omitted keys:
 {
   "summary": "2-3 sentence executive summary of what this data shows and its key story",
@@ -62,7 +73,7 @@ Return exactly this JSON shape — no extra keys, no omitted keys:
 }
 
 ${focusText ? `Priority focus: "${focusText}". Weight your summary, insights, charts, and recommendations toward this area.\n` : ""}Rules:
-- insights: exactly 3-5 strings, each citing a specific number or pattern visible in the sample data
+${factRows ? "- For any claim about a total, average, high, low, best/worst period, or period-over-period change, use the exact figures from \"Computed facts\" above — do not calculate your own from the sample rows, which are a subset and will produce wrong answers.\n" : ""}- insights: exactly 3-5 strings, each citing a specific number or pattern visible in the sample data
 - charts: exactly 2-4 items; choose the best type for the data — "bar" for comparisons, "line" for time series, "area" for cumulative/volume trends, "pie" for part-of-whole distributions (max 8 slices), "scatter" for correlation between two numeric columns; x_key and y_key must be exact column names from the Column metadata table; data array must use real values from the sample rows; vary chart types — do not use the same type for all charts
 - recommendations: exactly 3-5 strings, each a concrete action
 - Return ONLY the raw JSON object starting with { and ending with }`;}

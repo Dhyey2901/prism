@@ -10,11 +10,23 @@ export interface ColumnMeta {
   sample: (string | number | null)[];
 }
 
+// A fact computed deterministically in the browser from the FULL dataset
+// (not just the capped sample) — totals, extremes, period-over-period
+// changes. Sent to the AI as ground truth so it narrates numbers instead
+// of computing them, and shown in the UI so the user can check the AI's
+// claims against a number nothing hallucinated.
+export interface KeyMetric {
+  label: string;
+  value: number;
+  formatted: string;
+}
+
 export interface DatasetSummary {
   rowCount: number;
   columnCount: number;
   columns: ColumnMeta[];
   sampleRows: Record<string, string | number | null>[];
+  keyMetrics: KeyMetric[];
   fileName: string;
   fileSizeBytes: number;
 }

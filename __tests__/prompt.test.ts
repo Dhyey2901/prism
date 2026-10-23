@@ -16,6 +16,10 @@ const dataset: DatasetSummary = {
     { month: "Jan 2024", revenue: 1000, customers: 50 },
     { month: "Feb 2024", revenue: 1200, customers: 60 },
   ],
+  keyMetrics: [
+    { label: "Total revenue", value: 2200, formatted: "2,200" },
+    { label: "Largest increase in revenue", value: 200, formatted: "+200 (Jan 2024 → Feb 2024)" },
+  ],
 };
 
 describe("buildAnalysisPrompt", () => {
@@ -80,5 +84,22 @@ describe("buildAnalysisPrompt", () => {
     const prompt = buildAnalysisPrompt(dataset);
     expect(prompt).toContain("ONLY a single valid JSON");
     expect(prompt).toContain("no markdown fences");
+  });
+
+  it("includes computed key metrics as ground truth", () => {
+    const prompt = buildAnalysisPrompt(dataset);
+    expect(prompt).toContain("Computed facts");
+    expect(prompt).toContain("Total revenue: 2,200");
+    expect(prompt).toContain("Largest increase in revenue");
+  });
+
+  it("instructs the model to defer to computed facts over the sample", () => {
+    const prompt = buildAnalysisPrompt(dataset);
+    expect(prompt).toContain("do not calculate your own");
+  });
+
+  it("omits the facts section when there are no key metrics", () => {
+    const prompt = buildAnalysisPrompt({ ...dataset, keyMetrics: [] });
+    expect(prompt).not.toContain("Computed facts");
   });
 });

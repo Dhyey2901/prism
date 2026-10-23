@@ -46,6 +46,7 @@ export default async function SharedAnalysisPage({
             columnCount: analysis.columnCount,
             columns: [],
             sampleRows: [],
+            keyMetrics: [],
           }}
         />
 

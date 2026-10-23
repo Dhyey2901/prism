@@ -10,7 +10,7 @@ export const demoReport: AnalysisResult = {
     "Revenue grew 72% year-over-year, from $142,000 in January to $244,000 in December.",
     "Churn rate more than halved, dropping from 2.1% to 1.0%, even as the customer base grew 44%.",
     "Profit margin expanded from 31% to 45%, indicating expenses grew slower than revenue.",
-    "The strongest single-month growth came in October, with revenue up 7% month-over-month.",
+    "The strongest single-month growth came in March, with revenue up nearly 17% month-over-month (from $138,000 to $161,000).",
   ],
   charts: [
     {
@@ -32,7 +32,7 @@ export const demoReport: AnalysisResult = {
         { month: "Nov", revenue: 228000 },
         { month: "Dec", revenue: 244000 },
       ],
-      insight: "Revenue trended up all year, with only two minor dips (Feb, May) interrupting steady growth.",
+      insight: "Revenue trended up all year, with only three minor dips (Feb, May, Aug) interrupting steady growth.",
     },
     {
       type: "bar",
@@ -82,7 +82,7 @@ export const demoReport: AnalysisResult = {
     },
   ],
   recommendations: [
-    "Investigate what changed operationally around October, when growth accelerated, and repeat it.",
+    "Investigate what changed operationally around March, when growth accelerated, and repeat it.",
     "Churn is trending down — double down on whatever retention changes started in Q2.",
     "Expense growth has lagged revenue growth; consider reinvesting part of the expanding margin into customer acquisition.",
   ],

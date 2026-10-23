@@ -59,12 +59,20 @@ export async function rateLimit(key: string): Promise<RateLimitResult> {
   const limiter = getUpstash();
   if (!limiter) return inMemoryRateLimit(key);
 
-  const { success, remaining, reset } = await limiter.limit(key);
-  return {
-    allowed: success,
-    remaining,
-    retryAfterSeconds: success ? 0 : Math.ceil((reset - Date.now()) / 1000),
-  };
+  try {
+    const { success, remaining, reset } = await limiter.limit(key);
+    return {
+      allowed: success,
+      remaining,
+      retryAfterSeconds: success ? 0 : Math.ceil((reset - Date.now()) / 1000),
+    };
+  } catch (e) {
+    // Rate limiting is defense-in-depth, not core functionality — an
+    // Upstash outage or bad credentials should degrade to the in-memory
+    // limiter, not take down every /api/analyze request with a 500.
+    console.error("[rate-limit] Upstash unavailable, falling back to in-memory limiter", e);
+    return inMemoryRateLimit(key);
+  }
 }
 
 export function getClientKey(req: Request): string {

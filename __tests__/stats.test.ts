@@ -112,3 +112,52 @@ describe("buildSummary", () => {
     expect(types.active).toBe("boolean");
   });
 });
+
+// ── computeKeyMetrics (via buildSummary) ──────────────────────────────────────
+
+describe("buildSummary key metrics", () => {
+  const rows = [
+    { month: "Jan", revenue: 100 },
+    { month: "Feb", revenue: 90 },
+    { month: "Mar", revenue: 130 },
+  ];
+
+  it("computes total, average, highest, and lowest", () => {
+    const { keyMetrics } = buildSummary(rows, "f.csv", 100);
+    const byLabel = Object.fromEntries(keyMetrics.map((m) => [m.label, m]));
+    expect(byLabel["Total revenue"].value).toBe(320);
+    expect(byLabel["Average revenue"].value).toBeCloseTo(106.67, 1);
+    expect(byLabel["Highest revenue"].value).toBe(130);
+    expect(byLabel["Highest revenue"].formatted).toContain("Mar");
+    expect(byLabel["Lowest revenue"].value).toBe(90);
+    expect(byLabel["Lowest revenue"].formatted).toContain("Feb");
+  });
+
+  it("finds the largest period-over-period increase and decrease", () => {
+    const { keyMetrics } = buildSummary(rows, "f.csv", 100);
+    const byLabel = Object.fromEntries(keyMetrics.map((m) => [m.label, m]));
+    expect(byLabel["Largest increase in revenue"].value).toBe(40);
+    expect(byLabel["Largest increase in revenue"].formatted).toContain("Feb");
+    expect(byLabel["Largest increase in revenue"].formatted).toContain("Mar");
+    expect(byLabel["Largest decrease in revenue"].value).toBe(-10);
+  });
+
+  it("uses the full dataset, not just the capped sample", () => {
+    const bigRows = Array.from({ length: 50 }, (_, i) => ({
+      idx: `Row ${i}`,
+      val: i === 40 ? 10_000 : i, // the biggest value sits past row 20
+    }));
+    const { keyMetrics } = buildSummary(bigRows, "big.csv", 1000);
+    const highest = keyMetrics.find((m) => m.label === "Highest val");
+    expect(highest?.value).toBe(10_000);
+  });
+
+  it("returns no metrics for datasets with no numeric columns", () => {
+    const { keyMetrics } = buildSummary(
+      [{ city: "NYC" }, { city: "LA" }],
+      "f.csv",
+      100
+    );
+    expect(keyMetrics).toHaveLength(0);
+  });
+});

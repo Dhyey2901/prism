@@ -185,6 +185,7 @@ export default function Home() {
         columnCount: analysis.columnCount,
         columns: [],
         sampleRows: [],
+        keyMetrics: [],
       },
       result: analysis.result,
       savedId: analysis.id,
