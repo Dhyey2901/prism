@@ -3,7 +3,7 @@
 # Prism — AI-powered data reporting tool
 
 ## Stack
-Next.js 16 (App Router) · Tailwind CSS v4 · Shadcn/ui · Geist font · Framer Motion · Recharts · Gemini 2.5 Flash via Vercel AI SDK · React-pdf  
+Next.js 16 (App Router) · Tailwind CSS v4 · Shadcn/ui · Geist font · Framer Motion · Recharts · Gemini 3.5 Flash via Vercel AI SDK · React-pdf  
 Hosting: Vercel
 
 ## Current stage

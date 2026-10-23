@@ -8,7 +8,7 @@ AI-powered data reporting — turn raw spreadsheets into insights, charts, and e
 
 ## What It Does
 
-Upload a CSV or Excel file. Prism parses it entirely in your browser, sends only a compact statistical summary to Gemini 2.5 Flash, and streams back a structured analysis with:
+Upload a CSV or Excel file. Prism parses it entirely in your browser, sends only a compact statistical summary to Gemini 3.5 Flash, and streams back a structured analysis with:
 
 - Executive summary (streamed live as it generates)
 - Key insights with specific numbers from your data
@@ -55,7 +55,7 @@ File drop
                           → Body size cap (256KB)
                           → Schema validation
                           → Prompt construction
-                                              → Gemini 2.5 Flash
+                                              → Gemini 3.5 Flash
                                               ← Stream text chunks
                         ← toTextStreamResponse()
   ← ReadableStream
@@ -94,7 +94,7 @@ File drop
 Claim accuracy is measured, not assumed: `npm run eval:accuracy` runs real AI analysis against 12 small, hand-checked datasets (steady trends, mid-series dips, tied deltas, negative values, outliers) and scores how many of the AI's narrative claims — best/worst period, start→end % change, declines — match ground truth that was frozen before the eval ever ran. See [scripts/eval](./scripts/eval).
 
 <!-- EVAL:ACCURACY -->
-**Claim accuracy:** not yet run — see `npm run eval:accuracy`.
+**Claim accuracy:** 95.8% (46/48 checks) across 12 of 16 hand-checked test datasets (4 hit free-tier API rate limits this run) — see [scripts/eval](./scripts/eval).
 <!-- /EVAL:ACCURACY -->
 
 ---
@@ -108,7 +108,7 @@ Claim accuracy is measured, not assumed: `npm run eval:accuracy` runs real AI an
 | Typography    | Geist Sans + Geist Mono                                 |
 | Animation     | Framer Motion                                           |
 | Charts        | Recharts                                                |
-| AI            | Gemini 2.5 Flash + text-embedding-004 (Vercel AI SDK)   |
+| AI            | Gemini 3.5 Flash + text-embedding-004 (Vercel AI SDK)   |
 | Parsing       | Papaparse + exceljs (client-side)                       |
 | Export        | @react-pdf/renderer                                     |
 | Auth          | Clerk                                                   |

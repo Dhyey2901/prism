@@ -51,7 +51,7 @@ export async function POST(req: Request, { params }: RouteContext) {
     }));
 
     const result = streamText({
-      model: google("gemini-2.5-flash"),
+      model: google("gemini-3.5-flash"),
       system: buildChatSystemPrompt(analysis.filename, analysis.result),
       messages: aiMessages,
       onFinish: async ({ text }) => {

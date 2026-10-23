@@ -24,6 +24,7 @@ interface ClaimResult {
 interface DatasetResult {
   name: string;
   claims: ClaimResult[];
+  narrative?: string; // the AI's summary+insights+chart insights+recommendations, for hand-checking failures
   error?: string;
 }
 
@@ -48,7 +49,7 @@ async function runDataset(d: EvalDataset): Promise<DatasetResult> {
   const prompt = buildAnalysisPrompt(dataset);
 
   try {
-    const { text } = await generateText({ model: google("gemini-2.5-flash"), prompt });
+    const { text } = await generateText({ model: google("gemini-3.5-flash"), prompt });
     const json = text
       .replace(/^```(?:json)?\s*/m, "")
       .replace(/\s*```\s*$/m, "")
@@ -89,13 +90,19 @@ async function runDataset(d: EvalDataset): Promise<DatasetResult> {
       });
     }
 
-    return { name: d.name, claims };
+    return { name: d.name, claims, narrative: fullText };
   } catch (e) {
     return { name: d.name, claims: [], error: e instanceof Error ? e.message : String(e) };
   }
 }
 
-function patchReadme(accuracyPct: number, passed: number, total: number, datasetCount: number) {
+function patchReadme(
+  accuracyPct: number,
+  passed: number,
+  total: number,
+  datasetCount: number,
+  ranCount: number
+) {
   const readmePath = resolve(__dirname, "../../README.md");
   let readme: string;
   try {
@@ -106,7 +113,14 @@ function patchReadme(accuracyPct: number, passed: number, total: number, dataset
   const marker = /<!-- EVAL:ACCURACY -->[\s\S]*?<!-- \/EVAL:ACCURACY -->/;
   if (!marker.test(readme)) return; // no marker present — leave README alone
 
-  const line = `**Claim accuracy:** ${accuracyPct}% (${passed}/${total} checks) across ${datasetCount} hand-checked test datasets — see [scripts/eval](./scripts/eval).`;
+  // Don't claim to have checked datasets that errored out (rate limits,
+  // quota) before producing a result — that's a materially different claim
+  // from "we scored these and they passed."
+  const coverage =
+    ranCount === datasetCount
+      ? `${datasetCount} hand-checked test datasets`
+      : `${ranCount} of ${datasetCount} hand-checked test datasets (${datasetCount - ranCount} hit API errors this run)`;
+  const line = `**Claim accuracy:** ${accuracyPct}% (${passed}/${total} checks) across ${coverage} — see [scripts/eval](./scripts/eval).`;
   readme = readme.replace(marker, `<!-- EVAL:ACCURACY -->\n${line}\n<!-- /EVAL:ACCURACY -->`);
   writeFileSync(readmePath, readme);
   console.log("Updated README.md claim-accuracy line.");
@@ -135,12 +149,17 @@ async function main() {
   }
 
   const accuracyPct = total > 0 ? Math.round((passed / total) * 1000) / 10 : 0;
+  const ranCount = results.filter((r) => !r.error).length;
   console.log(`\nClaim accuracy: ${passed}/${total} (${accuracyPct}%)`);
+  if (ranCount < evalDatasets.length) {
+    console.log(`(${evalDatasets.length - ranCount} of ${evalDatasets.length} datasets errored out and were not scored)`);
+  }
 
   const out = {
     ranAt: new Date().toISOString(),
-    model: "gemini-2.5-flash",
+    model: "gemini-3.5-flash",
     datasetCount: evalDatasets.length,
+    ranCount,
     claimsTotal: total,
     claimsPassed: passed,
     accuracyPct,
@@ -150,7 +169,7 @@ async function main() {
   writeFileSync(outPath, JSON.stringify(out, null, 2));
   console.log(`Wrote ${outPath}`);
 
-  patchReadme(accuracyPct, passed, total, evalDatasets.length);
+  patchReadme(accuracyPct, passed, total, evalDatasets.length, ranCount);
 }
 
 main();
