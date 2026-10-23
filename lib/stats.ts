@@ -189,6 +189,17 @@ function computeKeyMetrics(
       }
     );
 
+    // A separate, explicit spread figure — a metric whose start and end
+    // values are close can still have swung widely in between, and a
+    // "stable" claim needs this checked, not just the two endpoints.
+    if (present.length > 1 && maxEntry.i !== minEntry.i) {
+      metrics.push({
+        label: `Range in ${name}`,
+        value: maxEntry.v - minEntry.v,
+        formatted: `${formatNumber(minEntry.v)}–${formatNumber(maxEntry.v)} (spread of ${formatNumber(maxEntry.v - minEntry.v)})`,
+      });
+    }
+
     if (present.length < 2) continue;
 
     // Start → end change, as both a percentage and the absolute values.
@@ -353,6 +364,16 @@ function computeKeyMetrics(
               label: `Lowest ${rawLabel}`,
               value: rMin.v,
               formatted: `${formatRatio(rMin.v)} (${labelFor(rMin.i)})`,
+            });
+
+            // formatRatio picks percent-vs-number by magnitude, which can
+            // misjudge a small spread — format this one using the same
+            // mode as the parent ratio (isRate) instead of re-deciding.
+            const fmtSpread = (v: number) => (isRate ? `${(v * 100).toFixed(1)}%` : formatNumber(v));
+            metrics.push({
+              label: `${rawLabel} range`,
+              value: rMax.v - rMin.v,
+              formatted: `${fmtSpread(rMin.v)}–${fmtSpread(rMax.v)} (spread of ${fmtSpread(rMax.v - rMin.v)})`,
             });
           }
         }

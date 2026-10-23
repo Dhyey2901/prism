@@ -226,4 +226,55 @@ export const evalDatasets: EvalDataset[] = [
       requiredPhrases: ["2.9", "2.8"],
     },
   },
+  {
+    name: "Rate near-equal at start/end but wide swing in between",
+    labelColumn: "month",
+    valueColumn: "orders",
+    rows: [
+      { month: "Jan", orders: 1000, returns: 29 },
+      { month: "Feb", orders: 1100, returns: 18 },
+      { month: "Mar", orders: 900, returns: 34 },
+      { month: "Apr", orders: 1200, returns: 30 },
+      { month: "May", orders: 1050, returns: 32 },
+      { month: "Jun", orders: 1150, returns: 32 },
+    ],
+    // Return rate: Jan 2.9% ... Jun 2.8% — close at the endpoints, but it
+    // ranged 1.6% (Feb) to 3.8% (Mar) in between. Calling that "stable"
+    // because start ≈ end, without checking the range, is the bug.
+    expected: {
+      bestLabel: "Apr",
+      worstLabel: "Mar",
+      downLabels: ["Mar", "May"],
+      startEndPctChange: 15.0,
+      forbiddenPhrases: ["stable", "steady", "consistent", "unchanged", "remained flat", "hasn't changed"],
+    },
+  },
+  {
+    name: "Overall growth with 5 of 11 down months",
+    labelColumn: "month",
+    valueColumn: "revenue",
+    rows: [
+      { month: "Jan", revenue: 100 },
+      { month: "Feb", revenue: 95 },
+      { month: "Mar", revenue: 110 },
+      { month: "Apr", revenue: 105 },
+      { month: "May", revenue: 120 },
+      { month: "Jun", revenue: 115 },
+      { month: "Jul", revenue: 130 },
+      { month: "Aug", revenue: 125 },
+      { month: "Sep", revenue: 140 },
+      { month: "Oct", revenue: 135 },
+      { month: "Nov", revenue: 150 },
+      { month: "Dec", revenue: 160 },
+    ],
+    // Net growth (+60%) makes "grew throughout" tempting, but 5 of the 11
+    // month-over-month moves actually declined.
+    expected: {
+      bestLabel: "Dec",
+      worstLabel: "Feb",
+      downLabels: ["Feb", "Apr", "Jun", "Aug", "Oct"],
+      startEndPctChange: 60.0,
+      forbiddenPhrases: ["throughout", "every month", "all year", "entire period", "consistently"],
+    },
+  },
 ];

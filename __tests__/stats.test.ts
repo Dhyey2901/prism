@@ -286,4 +286,24 @@ describe("buildSummary key metrics", () => {
     const perOrder = keyMetrics.find((m) => m.label === "Revenue per order");
     expect(perOrder?.formatted).not.toContain("%");
   });
+
+  it("computes an explicit range fact for a plain numeric column", () => {
+    const { keyMetrics } = buildSummary(rows, "f.csv", 100); // Jan 100, Feb 90, Mar 130
+    const range = keyMetrics.find((m) => m.label === "Range in revenue");
+    expect(range?.value).toBe(40);
+    expect(range?.formatted).toBe("90–130 (spread of 40)");
+  });
+
+  it("computes an explicit range fact for a rate, even when start and end are close", () => {
+    // Start (2.9%) and end (2.8%) are nearly identical, but the rate swung
+    // through 2.8% in between too — the range fact should still show up.
+    const returnRows = [
+      { month: "Jan", orders: 1000, returns: 29 },
+      { month: "Feb", orders: 1500, returns: 42 },
+      { month: "Mar", orders: 2000, returns: 56 },
+    ];
+    const { keyMetrics } = buildSummary(returnRows, "f.csv", 100);
+    const range = keyMetrics.find((m) => m.label === "return rate range");
+    expect(range?.formatted).toBe("2.8%–2.9% (spread of 0.1%)");
+  });
 });

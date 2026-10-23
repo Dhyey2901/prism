@@ -171,4 +171,32 @@ describe("buildAnalysisPrompt", () => {
     const prompt = buildAnalysisPrompt(dataset);
     expect(prompt).toContain('Only describe a metric as "stable"');
   });
+
+  it("requires a tight range, not just a close start and end, for stability claims", () => {
+    const prompt = buildAnalysisPrompt(dataset);
+    expect(prompt).toContain("BOTH hold");
+    expect(prompt).toContain("is NOT stable");
+  });
+
+  it("forbids 'throughout'/'every month' language for columns with declines", () => {
+    const withDip: DatasetSummary = {
+      ...dataset,
+      keyMetrics: [
+        ...dataset.keyMetrics,
+        { label: "Down periods in revenue", value: 1, formatted: "1 of 1 period-over-period moves declined: Feb 2024" },
+      ],
+    };
+    const prompt = buildAnalysisPrompt(withDip);
+    expect(prompt).toContain('"throughout", "every month", "all year"');
+  });
+
+  it("does not mention throughout/every-month framing when there are no declines", () => {
+    const prompt = buildAnalysisPrompt(dataset);
+    expect(prompt).not.toContain('"throughout", "every month", "all year"');
+  });
+
+  it("prefers direct period names over relative-position labels", () => {
+    const prompt = buildAnalysisPrompt(dataset);
+    expect(prompt).toContain('"mid-year"');
+  });
 });
