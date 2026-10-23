@@ -303,7 +303,7 @@ describe("buildSummary key metrics", () => {
       { month: "Mar", orders: 2000, returns: 56 },
     ];
     const { keyMetrics } = buildSummary(returnRows, "f.csv", 100);
-    const range = keyMetrics.find((m) => m.label === "return rate range");
+    const range = keyMetrics.find((m) => m.label === "Return rate range");
     expect(range?.formatted).toBe("2.8%–2.9% (spread of 0.1%)");
   });
 });

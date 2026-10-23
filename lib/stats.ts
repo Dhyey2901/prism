@@ -371,7 +371,7 @@ function computeKeyMetrics(
             // mode as the parent ratio (isRate) instead of re-deciding.
             const fmtSpread = (v: number) => (isRate ? `${(v * 100).toFixed(1)}%` : formatNumber(v));
             metrics.push({
-              label: `${rawLabel} range`,
+              label: `${capitalize(rawLabel)} range`,
               value: rMax.v - rMin.v,
               formatted: `${fmtSpread(rMin.v)}–${fmtSpread(rMax.v)} (spread of ${fmtSpread(rMax.v - rMin.v)})`,
             });

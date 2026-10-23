@@ -54,7 +54,16 @@ export async function POST(req: Request, { params }: RouteContext) {
       model: google("gemini-3.5-flash"),
       system: buildChatSystemPrompt(analysis.filename, analysis.result),
       messages: aiMessages,
-      onFinish: async ({ text }) => {
+      // Chat replies are short (2-4 sentences per the system prompt), so
+      // truncation is unlikely, but cap thinking anyway for consistency
+      // with /api/analyze — see the comment there for why it matters.
+      providerOptions: {
+        google: { thinkingConfig: { thinkingBudget: 512 } },
+      },
+      onFinish: async ({ text, finishReason }) => {
+        if (finishReason !== "stop") {
+          console.warn(`[POST /api/analyses/${id}/chat] finished with reason "${finishReason}"`);
+        }
         await createMessage(id, userId, "assistant", text);
       },
     });

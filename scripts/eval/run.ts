@@ -17,6 +17,24 @@ import { evalDatasets, type EvalDataset } from "./datasets";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// Paced between datasets, and backed off on a transient "high demand"
+// error — running 16 requests back-to-back is itself what was tripping
+// Gemini's demand throttle on some runs.
+const PACING_MS = 3000;
+const HIGH_DEMAND_BACKOFF_MS = 8000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function isQuotaExceeded(message: string): boolean {
+  return /quota|RESOURCE_EXHAUSTED/i.test(message);
+}
+
+function isHighDemand(message: string): boolean {
+  return /high demand/i.test(message);
+}
+
 interface ClaimResult {
   claim: string;
   passed: boolean;
@@ -44,12 +62,36 @@ function numberMatch(text: string, n: number): boolean {
   return false;
 }
 
+const MODEL_NAME = "gemini-3.5-flash";
+const HIGH_DEMAND_EXTRA_ATTEMPTS = 2;
+
+// generateText already retries internally on transient errors, but all of
+// those attempts happen back-to-back in milliseconds — too fast for a
+// "high demand" spike to pass. This adds a real wait between attempts for
+// that specific error, and gives up immediately (no point waiting) on a
+// quota error, which reports multi-hour retry delays.
+async function generateWithBackoff(prompt: string): Promise<{ text: string }> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 1 + HIGH_DEMAND_EXTRA_ATTEMPTS; attempt++) {
+    try {
+      return await generateText({ model: google(MODEL_NAME), prompt });
+    } catch (e) {
+      lastError = e;
+      const message = e instanceof Error ? e.message : String(e);
+      if (isQuotaExceeded(message)) throw e; // won't recover within this run
+      if (!isHighDemand(message) || attempt > HIGH_DEMAND_EXTRA_ATTEMPTS) throw e;
+      await sleep(HIGH_DEMAND_BACKOFF_MS * attempt);
+    }
+  }
+  throw lastError;
+}
+
 async function runDataset(d: EvalDataset): Promise<DatasetResult> {
   const dataset = buildSummary(d.rows, `${d.name}.csv`, 200);
   const prompt = buildAnalysisPrompt(dataset);
 
   try {
-    const { text } = await generateText({ model: google("gemini-3.5-flash"), prompt });
+    const { text } = await generateWithBackoff(prompt);
     const json = text
       .replace(/^```(?:json)?\s*/m, "")
       .replace(/\s*```\s*$/m, "")
@@ -101,7 +143,8 @@ function patchReadme(
   passed: number,
   total: number,
   datasetCount: number,
-  ranCount: number
+  ranCount: number,
+  model: string
 ) {
   const readmePath = resolve(__dirname, "../../README.md");
   let readme: string;
@@ -120,7 +163,7 @@ function patchReadme(
     ranCount === datasetCount
       ? `${datasetCount} hand-checked test datasets`
       : `${ranCount} of ${datasetCount} hand-checked test datasets (${datasetCount - ranCount} hit API errors this run)`;
-  const line = `**Claim accuracy:** ${accuracyPct}% (${passed}/${total} checks) across ${coverage} — see [scripts/eval](./scripts/eval).`;
+  const line = `**Claim accuracy:** ${accuracyPct}% (${passed}/${total} checks, ${model}) across ${coverage} — see [scripts/eval](./scripts/eval).`;
   readme = readme.replace(marker, `<!-- EVAL:ACCURACY -->\n${line}\n<!-- /EVAL:ACCURACY -->`);
   writeFileSync(readmePath, readme);
   console.log("Updated README.md claim-accuracy line.");
@@ -128,9 +171,11 @@ function patchReadme(
 
 async function main() {
   const results: DatasetResult[] = [];
-  for (const d of evalDatasets) {
+  for (let i = 0; i < evalDatasets.length; i++) {
+    const d = evalDatasets[i];
     console.log(`Running: ${d.name}`);
     results.push(await runDataset(d));
+    if (i < evalDatasets.length - 1) await sleep(PACING_MS);
   }
 
   let total = 0;
@@ -157,7 +202,7 @@ async function main() {
 
   const out = {
     ranAt: new Date().toISOString(),
-    model: "gemini-3.5-flash",
+    model: MODEL_NAME,
     datasetCount: evalDatasets.length,
     ranCount,
     claimsTotal: total,
@@ -169,7 +214,7 @@ async function main() {
   writeFileSync(outPath, JSON.stringify(out, null, 2));
   console.log(`Wrote ${outPath}`);
 
-  patchReadme(accuracyPct, passed, total, evalDatasets.length, ranCount);
+  patchReadme(accuracyPct, passed, total, evalDatasets.length, ranCount, MODEL_NAME);
 }
 
 main();

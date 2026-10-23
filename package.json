@@ -10,7 +10,8 @@
     "db:migrate": "node scripts/migrate.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "eval:accuracy": "tsx scripts/eval/run.ts"
+    "eval:accuracy": "tsx scripts/eval/run.ts",
+    "smoke:analyze": "tsx scripts/smoke-analyze.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.80",
