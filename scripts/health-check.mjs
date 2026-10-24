@@ -2,7 +2,7 @@
 // and confirms it returns a valid AnalysisResult. Exits non-zero on any
 // failure so the calling GitHub Action can report an outage.
 
-const SITE_URL = process.env.HEALTH_CHECK_URL ?? "https://prismanalytics.app";
+const SITE_URL = process.env.HEALTH_CHECK_URL || "https://prismanalytics.app";
 const TIMEOUT_MS = 30_000;
 
 const sampleDataset = {
