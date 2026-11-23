@@ -3,7 +3,11 @@
 // failure so the calling GitHub Action can report an outage.
 
 const SITE_URL = process.env.HEALTH_CHECK_URL || "https://prismanalytics.app";
-const TIMEOUT_MS = 30_000;
+// /api/analyze retries once server-side on a truncated/invalid response
+// (25s timeout per attempt, see app/api/analyze/route.ts), so a legitimate
+// success can take up to ~50s plus network/cold-start overhead. 30s here
+// was flagging real, successful-but-slow responses as failures.
+const TIMEOUT_MS = 70_000;
 
 const sampleDataset = {
   rowCount: 12,

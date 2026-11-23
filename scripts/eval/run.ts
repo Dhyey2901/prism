@@ -123,7 +123,11 @@ async function generateWithBackoff(prompt: string): Promise<{ text: string }> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= 1 + HIGH_DEMAND_EXTRA_ATTEMPTS; attempt++) {
     try {
-      return await generateText({ model: google(MODEL_NAME), prompt });
+      // maxRetries: 0 — our own loop here already retries on "high demand"
+      // with a real wait between attempts; stacking the SDK's default
+      // internal retries (3 back-to-back attempts per call) on top just
+      // multiplies latency and quota usage without helping.
+      return await generateText({ model: google(MODEL_NAME), prompt, maxRetries: 0, timeout: 25_000 });
     } catch (e) {
       lastError = e;
       const message = e instanceof Error ? e.message : String(e);

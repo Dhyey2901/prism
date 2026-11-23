@@ -12,7 +12,10 @@ import { validateAnalysisResult } from "../lib/validate";
 
 const SITE_URL = process.env.HEALTH_CHECK_URL ?? "http://localhost:3000";
 const RUNS = Number(process.env.RUNS ?? 5);
-const TIMEOUT_MS = 30_000;
+// /api/analyze retries once server-side (25s timeout per attempt), so a
+// legitimate success can take up to ~50s plus overhead — see
+// app/api/analyze/route.ts and the same comment in health-check.mjs.
+const TIMEOUT_MS = 70_000;
 
 const sampleRows = [
   { month: "Jan 2024", revenue: 142000, customers: 1240 },

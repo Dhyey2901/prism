@@ -60,6 +60,9 @@ export async function POST(req: Request, { params }: RouteContext) {
       providerOptions: {
         google: { thinkingConfig: { thinkingBudget: 512 } },
       },
+      // No outer retry loop here (unlike /api/analyze), so this keeps the
+      // SDK's own default retries but still bounds total latency.
+      timeout: 25_000,
       onFinish: async ({ text, finishReason }) => {
         if (finishReason !== "stop") {
           console.warn(`[POST /api/analyses/${id}/chat] finished with reason "${finishReason}"`);

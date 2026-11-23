@@ -22,6 +22,11 @@ const THINKING_BUDGET = 1024;
 // retrying forever on a real, persistent failure.
 const MAX_ATTEMPTS = 2;
 
+// Bounds a single generateText call so a slow/hung attempt fails fast and
+// moves to the retry instead of silently eating the whole request budget.
+// Worst case is now ~2x this, not unbounded.
+const PER_ATTEMPT_TIMEOUT_MS = 25_000;
+
 function stripFences(text: string): string {
   return text
     .replace(/^```(?:json)?\s*/m, "")
@@ -80,6 +85,13 @@ export async function POST(req: NextRequest) {
         providerOptions: {
           google: { thinkingConfig: { thinkingBudget: THINKING_BUDGET } },
         },
+        // generateText's own default (maxRetries: 2, i.e. 3 attempts) was
+        // stacking with our retry loop — up to 6 real Gemini calls with no
+        // per-call time bound, which is what was turning into 50s+ total
+        // latency and occasional timeouts. We already retry at this level,
+        // so let each individual attempt fail fast instead.
+        maxRetries: 0,
+        timeout: PER_ATTEMPT_TIMEOUT_MS,
       });
 
       if (finishReason !== "stop") {
