@@ -5,6 +5,16 @@ const sql = neon(process.env.DATABASE_URL!);
 
 type DbRow = Record<string, unknown>;
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// `id` / `analysis_id` columns are uuid-typed — handing Postgres a
+// non-UUID string (e.g. a bot probing /analysis/<junk>, or a mistyped
+// share link) throws a syntax error that would otherwise escape as an
+// uncaught exception. Treat it as "not found" instead of a 500.
+export function isValidUuid(id: string): boolean {
+  return UUID_RE.test(id);
+}
+
 function toSavedAnalysis(row: DbRow): SavedAnalysis {
   return {
     id: row.id as string,
@@ -74,6 +84,7 @@ export async function getAnalysesByUser(userId: string): Promise<SavedAnalysis[]
 }
 
 export async function getAnalysisById(id: string): Promise<SavedAnalysis | null> {
+  if (!isValidUuid(id)) return null;
   const rows = await sql`
     SELECT * FROM analyses
     WHERE id = ${id}
@@ -82,6 +93,7 @@ export async function getAnalysisById(id: string): Promise<SavedAnalysis | null>
 }
 
 export async function deleteAnalysis(id: string, userId: string): Promise<void> {
+  if (!isValidUuid(id)) return;
   await sql`
     DELETE FROM analyses
     WHERE id = ${id} AND user_id = ${userId}
@@ -100,6 +112,7 @@ function toChatMessage(row: DbRow): ChatMessage {
 }
 
 export async function getMessages(analysisId: string): Promise<ChatMessage[]> {
+  if (!isValidUuid(analysisId)) return [];
   const rows = await sql`
     SELECT id, role, content, created_at
     FROM messages
