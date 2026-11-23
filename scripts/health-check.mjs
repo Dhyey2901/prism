@@ -4,10 +4,9 @@
 
 const SITE_URL = process.env.HEALTH_CHECK_URL || "https://prismanalytics.app";
 // /api/analyze retries once server-side on a truncated/invalid response
-// (25s timeout per attempt, see app/api/analyze/route.ts), so a legitimate
-// success can take up to ~50s plus network/cold-start overhead. 30s here
-// was flagging real, successful-but-slow responses as failures.
-const TIMEOUT_MS = 70_000;
+// (50s timeout per attempt, see app/api/analyze/route.ts), so a legitimate
+// success can take up to ~100s plus network/cold-start overhead.
+const TIMEOUT_MS = 130_000;
 
 const sampleDataset = {
   rowCount: 12,

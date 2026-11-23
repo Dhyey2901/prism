@@ -22,10 +22,13 @@ const THINKING_BUDGET = 1024;
 // retrying forever on a real, persistent failure.
 const MAX_ATTEMPTS = 2;
 
-// Bounds a single generateText call so a slow/hung attempt fails fast and
-// moves to the retry instead of silently eating the whole request budget.
-// Worst case is now ~2x this, not unbounded.
-const PER_ATTEMPT_TIMEOUT_MS = 25_000;
+// Bounds a single generateText call so a hung attempt fails fast and moves
+// to the retry instead of silently eating the whole request budget. 25s
+// was too tight — live testing showed Gemini legitimately taking 25-35s
+// under normal (non-hung) load, so that cap was turning healthy-but-slow
+// generations into self-inflicted double-timeouts. Worst case is now
+// ~2x this, not unbounded — still a real improvement on no cap at all.
+const PER_ATTEMPT_TIMEOUT_MS = 50_000;
 
 function stripFences(text: string): string {
   return text

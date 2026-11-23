@@ -127,7 +127,7 @@ async function generateWithBackoff(prompt: string): Promise<{ text: string }> {
       // with a real wait between attempts; stacking the SDK's default
       // internal retries (3 back-to-back attempts per call) on top just
       // multiplies latency and quota usage without helping.
-      return await generateText({ model: google(MODEL_NAME), prompt, maxRetries: 0, timeout: 25_000 });
+      return await generateText({ model: google(MODEL_NAME), prompt, maxRetries: 0, timeout: 50_000 });
     } catch (e) {
       lastError = e;
       const message = e instanceof Error ? e.message : String(e);
