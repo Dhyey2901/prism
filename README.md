@@ -114,7 +114,7 @@ Claim accuracy is measured, not assumed: `npm run eval:accuracy` runs real AI an
 | Auth          | Clerk                                                   |
 | Database      | Neon Postgres + pgvector                                |
 | Rate limiting | Upstash Redis (distributed sliding window)              |
-| Testing       | Vitest — 58 tests across 5 files                        |
+| Testing       | Vitest — 97 tests across 6 files                        |
 | Hosting       | Vercel                                                  |
 
 ---
@@ -155,7 +155,7 @@ lib/
   embeddings.ts           Gemini text-embedding-004 wrapper + embeddingTextFromAnalysis helper
 
 types/index.ts            All shared TypeScript types
-__tests__/                Vitest unit tests — 58 tests across 5 files
+__tests__/                Vitest unit tests — 97 tests across 6 files
 public/
   sample.csv              Demo dataset — 12-month revenue / customers / churn
   logo.png                Prism logo
