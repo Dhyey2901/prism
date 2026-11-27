@@ -30,6 +30,25 @@ const MAX_ATTEMPTS = 2;
 // ~2x this, not unbounded — still a real improvement on no cap at all.
 const PER_ATTEMPT_TIMEOUT_MS = 50_000;
 
+// Gemini's "high demand" 503 is transient but retrying it back-to-back
+// (the default, with no wait) just hits the same overload again — this is
+// the same fix already applied in scripts/eval/run.ts's generateWithBackoff.
+// A quota error reports a multi-hour retry delay, so don't burn the second
+// attempt's timeout waiting on something that won't recover this request.
+const HIGH_DEMAND_BACKOFF_MS = 8000;
+
+function isQuotaExceeded(message: string): boolean {
+  return /quota|RESOURCE_EXHAUSTED/i.test(message);
+}
+
+function isHighDemand(message: string): boolean {
+  return /high demand/i.test(message);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 function stripFences(text: string): string {
   return text
     .replace(/^```(?:json)?\s*/m, "")
@@ -123,6 +142,12 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       const level = attempt < MAX_ATTEMPTS ? console.warn : console.error;
       level(`[/api/analyze] attempt ${attempt}/${MAX_ATTEMPTS} failed`, e);
+
+      const message = e instanceof Error ? e.message : String(e);
+      if (isQuotaExceeded(message)) break; // won't recover within this request
+      if (attempt < MAX_ATTEMPTS && isHighDemand(message)) {
+        await sleep(HIGH_DEMAND_BACKOFF_MS);
+      }
     }
   }
 
